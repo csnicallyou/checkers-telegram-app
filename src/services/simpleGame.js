@@ -11,6 +11,7 @@ class SimpleGame {
         this.connected = false;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
+        this.pendingMessages = []; // Очередь сообщений, которые не удалось отправить
         
         this.serverUrl = import.meta.env.VITE_SERVER_URL || 'wss://checkers-server-0y7z.onrender.com';
         
@@ -34,6 +35,22 @@ class SimpleGame {
                     console.log('✅ WebSocket connected');
                     this.connected = true;
                     this.reconnectAttempts = 0;
+                    
+                    // Если у нас был gameId, отправляем запрос на восстановление сессии
+                    if (this.gameId) {
+                        console.log('🔄 Восстановление сессии игры:', this.gameId);
+                        this.send('reconnect', {
+                            gameId: this.gameId,
+                            playerName: this.myName
+                        });
+                    }
+                    
+                    // Отправляем все накопившиеся сообщения
+                    while (this.pendingMessages.length > 0) {
+                        const msg = this.pendingMessages.shift();
+                        this.ws.send(JSON.stringify(msg));
+                    }
+                    
                     resolve();
                 };
                 
@@ -46,7 +63,6 @@ class SimpleGame {
                 this.ws.onclose = () => {
                     console.log('🔴 WebSocket closed');
                     this.connected = false;
-                    // Автоматическое переподключение
                     this.attemptReconnect();
                 };
                 
@@ -56,6 +72,10 @@ class SimpleGame {
                         console.log('📩 Получено:', data);
                         
                         switch(data.type) {
+                            case 'reconnect_success':
+                                console.log('✅ Сессия восстановлена');
+                                break;
+                                
                             case 'host_created':
                                 this.gameId = data.gameId;
                                 this.mySide = data.side;
@@ -66,7 +86,6 @@ class SimpleGame {
                                 
                             case 'guest_joined':
                                 if (this.isHost) {
-                                    // Мы хост - к нам присоединился гость
                                     if (this.onGuestJoined) {
                                         this.onGuestJoined({
                                             guestName: data.guestName,
@@ -74,7 +93,6 @@ class SimpleGame {
                                         });
                                     }
                                 } else {
-                                    // Мы гость - мы присоединились к игре
                                     this.gameId = data.gameId;
                                     this.myName = data.myName;
                                     this.mySide = data.mySide;
@@ -151,105 +169,71 @@ class SimpleGame {
         
         setTimeout(() => {
             if (!this.connected) {
-                this.connect().catch(() => {
-                    // Ошибка уже обработана в connect
-                });
+                this.connect().catch(() => {});
             }
-        }, 3000 * this.reconnectAttempts); // Увеличиваем задержку с каждой попыткой
+        }, 3000 * this.reconnectAttempts);
     }
 
     checkConnection() {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            console.error('❌ WebSocket не в открытом состоянии:', this.ws?.readyState);
-            if (!this.connected) {
-                this.attemptReconnect();
-            }
+            console.warn('⚠️ WebSocket не в открытом состоянии, сообщение будет отправлено после переподключения');
             return false;
         }
         return true;
     }
 
-    hostCreate(side) {
+    send(type, data) {
+        const message = JSON.stringify({ type, ...data });
+        
         if (!this.checkConnection()) {
-            console.error('❌ Невозможно создать игру: нет соединения');
+            // Сохраняем сообщение для отправки после переподключения
+            console.log('📥 Сообщение добавлено в очередь:', { type, ...data });
+            this.pendingMessages.push({ type, ...data });
             return;
         }
         
+        this.ws.send(message);
+    }
+
+    hostCreate(side) {
         const playerName = this.getTelegramName();
         this.myName = playerName;
         console.log('📤 Отправка host_create:', { side, playerName });
-        this.ws.send(JSON.stringify({ 
-            type: 'host_create', 
-            side,
-            playerName 
-        }));
+        this.send('host_create', { side, playerName });
     }
 
     guestJoin(gameId) {
-        if (!this.checkConnection()) {
-            console.error('❌ Невозможно присоединиться: нет соединения');
-            return;
-        }
-        
         const playerName = this.getTelegramName();
         this.myName = playerName;
         console.log('📤 Отправка guest_join:', { gameId, playerName });
-        this.ws.send(JSON.stringify({ 
-            type: 'guest_join', 
-            gameId: gameId.toUpperCase(),
-            playerName 
-        }));
+        this.send('guest_join', { gameId: gameId.toUpperCase(), playerName });
     }
 
     guestReady() {
-        if (!this.checkConnection()) {
-            console.error('❌ Невозможно отправить готовность: нет соединения');
-            return;
-        }
-        
         console.log('📤 Отправка guest_ready:', { gameId: this.gameId });
-        this.ws.send(JSON.stringify({ 
-            type: 'guest_ready', 
-            gameId: this.gameId 
-        }));
+        this.send('guest_ready', { gameId: this.gameId });
     }
 
     hostStart() {
-        if (!this.checkConnection()) {
-            console.error('❌ Невозможно начать игру: нет соединения');
-            return;
-        }
-        
         console.log('🎮 Хост начинает игру:', this.gameId);
-        this.ws.send(JSON.stringify({ 
-            type: 'host_start', 
-            gameId: this.gameId 
-        }));
+        this.send('host_start', { gameId: this.gameId });
     }
 
     sendMove(move, board, currentPlayer) {
-        if (!this.checkConnection()) {
-            console.error('❌ Невозможно отправить ход: нет соединения');
-            return;
-        }
-        
         console.log('📤 Отправка хода:', { move, currentPlayer });
-        this.ws.send(JSON.stringify({
-            type: 'move',
+        this.send('move', {
             gameId: this.gameId,
             move,
             board,
             currentPlayer
-        }));
+        });
     }
 
     getTelegramName() {
-        // Пытаемся получить имя из Telegram
         if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
             const user = window.Telegram.WebApp.initDataUnsafe.user;
             return user.first_name || user.username || 'Игрок';
         }
-        // Если нет Telegram, используем localStorage или имя по умолчанию
         const savedName = localStorage.getItem('playerName');
         return savedName || 'Игрок';
     }
@@ -268,6 +252,7 @@ class SimpleGame {
         this.opponentColor = null;
         this.isHost = false;
         this.reconnectAttempts = 0;
+        this.pendingMessages = [];
     }
 }
 

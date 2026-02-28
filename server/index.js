@@ -28,8 +28,46 @@ wss.on('connection', (ws) => {
       const data = JSON.parse(message);
       console.log('📩 Получено:', data.type, data);
 
+      // ВОССТАНОВЛЕНИЕ СЕССИИ
+      if (data.type === 'reconnect') {
+        console.log(`🔄 Попытка восстановления сессии для игры ${data.gameId}`);
+        const game = games[data.gameId];
+        
+        if (!game) {
+          ws.send(JSON.stringify({ 
+            type: 'error', 
+            message: 'Игра не найдена' 
+          }));
+          return;
+        }
+        
+        // Восстанавливаем соединение
+        if (game.hostName === data.playerName) {
+          game.host = ws;
+          ws.playerName = data.playerName;
+          ws.gameId = data.gameId;
+          console.log(`✅ Сессия хоста восстановлена для игры ${data.gameId}`);
+        } else if (game.guestName === data.playerName) {
+          game.guest = ws;
+          ws.playerName = data.playerName;
+          ws.gameId = data.gameId;
+          console.log(`✅ Сессия гостя восстановлена для игры ${data.gameId}`);
+        } else {
+          ws.send(JSON.stringify({ 
+            type: 'error', 
+            message: 'Игрок не найден в этой игре' 
+          }));
+          return;
+        }
+        
+        ws.send(JSON.stringify({ 
+          type: 'reconnect_success',
+          gameId: data.gameId
+        }));
+      }
+
       // ХОСТ СОЗДАЕТ ИГРУ
-      if (data.type === 'host_create') {
+      else if (data.type === 'host_create') {
         const gameId = Math.random().toString(36).substring(2, 8).toUpperCase();
         
         games[gameId] = {
@@ -174,7 +212,7 @@ wss.on('connection', (ws) => {
         console.log(`   От: ${game.host === ws ? game.hostName : game.guestName}`);
         
         const target = game.host === ws ? game.guest : game.host;
-        if (target) {
+        if (target && target.readyState === WebSocket.OPEN) {
           const targetName = game.host === ws ? game.guestName : game.hostName;
           console.log(`   Кому: ${targetName}`);
           
@@ -186,7 +224,7 @@ wss.on('connection', (ws) => {
           }));
           console.log(`✅ Ход отправлен`);
         } else {
-          console.log(`❌ Целевой игрок не найден`);
+          console.log(`❌ Целевой игрок не найден или не в сети`);
         }
       }
     } catch (error) {
@@ -203,7 +241,7 @@ wss.on('connection', (ws) => {
       
       if (game.host === ws) {
         console.log(`❌ Хост ${game.hostName} покинул игру ${gameId}`);
-        if (game.guest) {
+        if (game.guest && game.guest.readyState === WebSocket.OPEN) {
           game.guest.send(JSON.stringify({ 
             type: 'host_left',
             message: 'Хост покинул игру'
@@ -218,7 +256,7 @@ wss.on('connection', (ws) => {
         game.guest = null;
         game.guestName = null;
         game.guestReady = false;
-        if (game.host) {
+        if (game.host && game.host.readyState === WebSocket.OPEN) {
           game.host.send(JSON.stringify({ 
             type: 'guest_left',
             message: 'Гость покинул игру'
