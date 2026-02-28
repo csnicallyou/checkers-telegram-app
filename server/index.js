@@ -30,7 +30,7 @@ app.get('/', (req, res) => {
 
 wss.on('connection', (ws) => {
   const clientId = Date.now() + Math.random();
-  clients.set(clientId, { ws, gameId: null });
+  clients.set(clientId, { ws, gameId: null, name: null });
   
   console.log('🟢 Client connected:', clientId);
   
@@ -43,10 +43,10 @@ wss.on('connection', (ws) => {
 
       switch (data.type) {
         case 'create_game':
-          handleCreateGame(clientId, data.side);
+          handleCreateGame(clientId, data.playerName, data.side);
           break;
         case 'join_game':
-          handleJoinGame(clientId, data.gameId);
+          handleJoinGame(clientId, data.playerName, data.gameId);
           break;
         case 'player_ready':
           handlePlayerReady(clientId, data.gameId, data.ready);
@@ -72,9 +72,11 @@ wss.on('connection', (ws) => {
   });
 });
 
-function handleCreateGame(clientId, side) {
+function handleCreateGame(clientId, playerName, side) {
   const client = clients.get(clientId);
   if (!client) return;
+  
+  client.name = playerName;
   
   const gameId = Math.random().toString(36).substring(2, 8).toUpperCase();
   
@@ -86,6 +88,7 @@ function handleCreateGame(clientId, side) {
     id: gameId,
     host: {
       id: clientId,
+      name: playerName,
       side: hostSide,
       ready: false
     },
@@ -100,24 +103,27 @@ function handleCreateGame(clientId, side) {
     type: 'game_created',
     gameId,
     hostSide: hostSide,
-    guestSide: guestSide
+    guestSide: guestSide,
+    playerName: playerName
   }));
   
-  console.log(`✅ Game created: ${gameId} (host: ${hostSide})`);
+  console.log(`✅ Game created: ${gameId} by ${playerName} (${hostSide})`);
 }
 
-function handleJoinGame(clientId, gameId) {
+function handleJoinGame(clientId, playerName, gameId) {
   const client = clients.get(clientId);
   if (!client) return;
   
+  client.name = playerName;
+  
   const game = games.get(gameId);
   if (!game) {
-    client.ws.send(JSON.stringify({ type: 'error', message: 'Game not found' }));
+    client.ws.send(JSON.stringify({ type: 'error', message: 'Игра не найдена' }));
     return;
   }
   
   if (game.guest) {
-    client.ws.send(JSON.stringify({ type: 'error', message: 'Game is full' }));
+    client.ws.send(JSON.stringify({ type: 'error', message: 'Игра уже заполнена' }));
     return;
   }
   
@@ -126,31 +132,36 @@ function handleJoinGame(clientId, gameId) {
   
   game.guest = {
     id: clientId,
+    name: playerName,
     side: guestSide,
     ready: false
   };
   
   client.gameId = gameId;
   
+  console.log(`✅ Guest joined: ${gameId} - ${playerName} (${guestSide})`);
+  console.log(`   Host: ${game.host.name} (${game.host.side})`);
+  
   // Уведомляем хоста о подключении гостя
   const hostClient = clients.get(game.host.id);
   if (hostClient) {
     hostClient.ws.send(JSON.stringify({
       type: 'player_joined',
-      guestId: clientId,
+      guestName: playerName,
       guestSide: guestSide
     }));
+    console.log(`📤 Sent player_joined to host: ${game.host.name}`);
   }
   
   // Уведомляем гостя
   client.ws.send(JSON.stringify({
     type: 'game_joined',
     gameId,
+    hostName: game.host.name,
     hostSide: game.host.side,
+    guestName: playerName,
     guestSide: guestSide
   }));
-  
-  console.log(`✅ Guest joined: ${gameId} (guest: ${guestSide})`);
 }
 
 function handlePlayerReady(clientId, gameId, ready) {
@@ -161,10 +172,10 @@ function handlePlayerReady(clientId, gameId, ready) {
   
   if (isHost) {
     game.host.ready = ready;
-    console.log(`✅ Host ready: ${gameId}`);
+    console.log(`✅ Host ready: ${game.host.name} in ${gameId}`);
   } else if (game.guest && game.guest.id === clientId) {
     game.guest.ready = ready;
-    console.log(`✅ Guest ready: ${gameId}`);
+    console.log(`✅ Guest ready: ${game.guest.name} in ${gameId}`);
   }
   
   // Уведомляем другого игрока
@@ -175,17 +186,25 @@ function handlePlayerReady(clientId, gameId, ready) {
     otherClient.ws.send(JSON.stringify({
       type: 'player_ready',
       role: isHost ? 'host' : 'guest',
+      playerName: isHost ? game.host.name : game.guest.name,
       ready
     }));
+    console.log(`📤 Sent player_ready to ${isHost ? 'guest' : 'host'}`);
   }
 }
 
 function handleStartGame(clientId, gameId) {
   const game = games.get(gameId);
-  if (!game) return;
+  if (!game) {
+    console.log(`❌ Game ${gameId} not found`);
+    return;
+  }
   
   // Только хост может начать игру
-  if (game.host.id !== clientId) return;
+  if (game.host.id !== clientId) {
+    console.log(`❌ Only host can start game ${gameId}`);
+    return;
+  }
   
   // Проверяем, что гость есть и готов
   if (!game.guest) {
@@ -201,16 +220,21 @@ function handleStartGame(clientId, gameId) {
   const hostClient = clients.get(game.host.id);
   const guestClient = clients.get(game.guest.id);
   
+  console.log(`🎮 Starting game ${gameId}`);
+  console.log(`   Host: ${game.host.name} (${game.host.side})`);
+  console.log(`   Guest: ${game.guest.name} (${game.guest.side})`);
+  
   // Отправляем хосту
   if (hostClient) {
     hostClient.ws.send(JSON.stringify({
       type: 'game_started',
       playerRole: 'host',
+      playerName: game.host.name,
       playerColor: game.host.side === 'white' ? 1 : 2,
-      opponentName: 'Гость',
+      opponentName: game.guest.name,
       opponentColor: game.guest.side === 'white' ? 1 : 2
     }));
-    console.log(`✅ Game start sent to host: ${gameId}`);
+    console.log(`✅ Game start sent to host: ${game.host.name}`);
   }
   
   // Отправляем гостю
@@ -218,14 +242,13 @@ function handleStartGame(clientId, gameId) {
     guestClient.ws.send(JSON.stringify({
       type: 'game_started',
       playerRole: 'guest',
+      playerName: game.guest.name,
       playerColor: game.guest.side === 'white' ? 1 : 2,
-      opponentName: 'Хост',
+      opponentName: game.host.name,
       opponentColor: game.host.side === 'white' ? 1 : 2
     }));
-    console.log(`✅ Game start sent to guest: ${gameId}`);
+    console.log(`✅ Game start sent to guest: ${game.guest.name}`);
   }
-  
-  console.log(`🎮 Game started: ${gameId}`);
 }
 
 function handleMakeMove(clientId, data) {
@@ -264,17 +287,22 @@ function handleLeaveGame(clientId) {
       type: 'opponent_left',
       message: isHost ? 'Хост покинул игру' : 'Гость покинул игру'
     }));
+    console.log(`📤 Sent opponent_left to ${isHost ? 'guest' : 'host'}`);
   }
   
   // Удаляем игру
   games.delete(client.gameId);
   client.gameId = null;
   
-  console.log(`👋 Player left game: ${client.gameId}`);
+  console.log(`👋 ${client.name} left game: ${client.gameId}`);
 }
 
 function handleDisconnect(clientId) {
-  handleLeaveGame(clientId);
+  const client = clients.get(clientId);
+  if (client) {
+    console.log(`🔴 ${client.name || 'Unknown'} disconnected`);
+    handleLeaveGame(clientId);
+  }
   clients.delete(clientId);
 }
 

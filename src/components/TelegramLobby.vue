@@ -174,54 +174,50 @@ export default {
         await telegramMultiplayer.connect();
         connected.value = true;
         
-       telegramMultiplayer.onGameCreated = (data) => {
-        console.log('Игра создана:', data);
-        gameId.value = data.gameId;
-        playerRole.value = 'host';
-        hostSide.value = data.hostSide;
-        guestSide.value = data.guestSide;
-        hostReady.value = false;
-        emit('game-created', { id: data.gameId });
+        telegramMultiplayer.onGameCreated = (data) => {
+            gameId.value = data.gameId;
+            playerRole.value = 'host';
+            hostSide.value = data.hostSide;
+            guestSide.value = data.guestSide;
+            hostName.value = telegramName.value;
+            emit('game-created', { id: data.gameId });
         };
 
         telegramMultiplayer.onGameJoined = (data) => {
-        console.log('Игра присоединена:', data);
-        gameId.value = data.gameId;
-        playerRole.value = 'guest';
-        hostSide.value = data.hostSide;
-        guestSide.value = data.guestSide;
-        guestName.value = telegramName.value;
-        guestReady.value = false;
-        emit('game-joined', { id: data.gameId });
+            gameId.value = data.gameId;
+            playerRole.value = 'guest';
+            hostSide.value = data.hostSide;
+            guestSide.value = data.guestSide;
+            hostName.value = data.hostName;
+            guestName.value = data.guestName;
+            emit('game-joined', { id: data.gameId });
         };
 
         telegramMultiplayer.onPlayerJoined = (data) => {
-        console.log('Игрок присоединился:', data);
-        guestName.value = 'Гость';
-        // Гость уже получил свою сторону при создании
+            guestName.value = data.guestName;
+            guestSide.value = data.guestSide;
+            console.log('👋 Гость подключился:', data.guestName);
         };
 
         telegramMultiplayer.onPlayerReady = (data) => {
-        console.log('Игрок готов:', data);
-        if (data.role === 'host') {
-            hostReady.value = data.ready;
-        } else {
-            guestReady.value = data.ready;
-        }
+            if (data.role === 'host') {
+                hostReady.value = data.ready;
+            } else {
+                guestReady.value = data.ready;
+            }
         };
 
+
         telegramMultiplayer.onGameStarted = (data) => {
-        console.log('Игра началась:', data);
-        gameStarted.value = true;
-        emit('start-game', {
-            id: gameId.value,
-            playerRole: data.playerRole,
-            playerColor: data.playerColor,
-            opponent: {
-            name: data.opponentName,
-            color: data.opponentColor
-            }
-        });
+            gameStarted.value = true;
+            emit('start-game', {
+                id: gameId.value,
+                playerRole: data.playerRole,
+                playerName: data.playerName,
+                playerColor: data.playerColor,
+                opponentName: data.opponentName,
+                opponentColor: data.opponentColor
+            });
         };
         
         telegramMultiplayer.onError = (msg) => {
