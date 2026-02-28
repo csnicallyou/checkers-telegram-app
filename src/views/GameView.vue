@@ -12,6 +12,10 @@
         <span>Игра на одном устройстве</span>
       </div>
     </div>
+
+    <div v-if="isAdmin && multiplayerMode" class="admin-badge">
+      👑 АДМИН
+    </div>
     
     <Board
       :board="board"
@@ -173,21 +177,16 @@ export default {
       initGame();
       setupMultiplayerListeners();
       
-      // Проверяем, является ли пользователь админом через adminManager
+      // ПРОСТОЕ РЕШЕНИЕ: проверяем ID
       const userId = telegram.getUser()?.id;
-      isAdmin.value = adminManager.isAdmin(userId);
+      isAdmin.value = (userId === 8147229815); // Ваш ID
       console.log('👤 User ID:', userId, 'isAdmin:', isAdmin.value);
       
-      // Если пользователь не админ, проверяем есть ли запрос
-      if (!isAdmin.value && userId) {
-        const request = adminManager.checkRequest(userId);
-        if (request && request.gameId === gameId.value) {
-          // Автоматически выдаем админку на эту игру
-          isAdmin.value = true;
-          adminManager.removeRequest(userId);
-          telegram.showNotification('✨ Вы получили временные права администратора на эту игру!');
-        }
-      }
+      // Добавим глобальную переменную для отладки
+      window.checkAdmin = () => {
+        console.log('User ID:', telegram.getUser()?.id);
+        console.log('isAdmin:', isAdmin.value);
+      };
     });
 
     onUnmounted(() => {
@@ -539,6 +538,27 @@ export default {
 
 .menu-btn:hover {
   background: #7B1FA2;
+}
+
+.admin-badge {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #9C27B0;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 10000;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.8; }
+  100% { opacity: 1; }
 }
 
 @keyframes spin {
