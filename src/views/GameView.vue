@@ -73,7 +73,7 @@ import GameControls from '../components/GameControls.vue';
 import { GameLogic } from '../services/gameLogic';
 import { LocalAI } from '../services/localAI';
 import { telegram } from '../services/telegram';
-import { simpleGame } from '../services/simpleGame';
+import { simpleGame } from '../services/simpleGame'; 
 import { PLAYER_WHITE, PLAYER_BLACK } from '../utils/constants';
 
 export default {
@@ -95,6 +95,7 @@ export default {
   },
   emits: ['back-to-menu', 'back-to-lobby'],
   setup(props, { emit }) {
+    console.log('🎮 GameView загружен, props:', props);
     const board = ref(GameLogic.initializeBoard());
     const currentPlayer = ref(PLAYER_WHITE);
     const moveHistory = ref([]);
@@ -127,19 +128,27 @@ export default {
 
     // Инициализация игры из пропсов
     // Инициализация игры из пропсов
+    // Инициализация игры из пропсов
     const initGame = () => {
-        console.log('🎮 GameView инициализация с props:', props.gameData);
+        console.log('🎮 GameView initGame вызван');
+        console.log('📦 props.gameData:', props.gameData);
+        console.log('🎮 multiplayerMode:', props.multiplayerMode);
         
-        if (!props.multiplayerMode || !props.gameData) {
-            console.log('❌ Нет данных мультиплеера');
+        if (!props.multiplayerMode) {
+            console.log('❌ Не мультиплеер режим');
+            return;
+        }
+        
+        if (!props.gameData) {
+            console.log('❌ Нет gameData');
             return;
         }
 
-        // Эти поля должны приходить из App.vue
         const { myColor, opponentColor, opponentName } = props.gameData;
+        console.log('📊 Данные из gameData:', { myColor, opponentColor, opponentName });
         
         if (!myColor || !opponentColor) {
-            console.log('❌ Нет данных о цветах в gameData');
+            console.log('❌ Нет данных о цветах');
             return;
         }
         

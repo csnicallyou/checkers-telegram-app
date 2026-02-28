@@ -196,7 +196,8 @@ export default {
 
         simpleGame.onGameStart = (data) => {
             console.log('🎮 ПОЛУЧЕНО СОБЫТИЕ game_start:', data);
-            emit('start-game', {  // ИЗМЕНИТЕ С 'game-start' НА 'start-game'
+            console.log('📤 Отправка события start-game в App.vue');
+            emit('start-game', {
                 myColor: data.myColor,
                 opponentColor: data.opponentColor,
                 opponentName: data.opponentName

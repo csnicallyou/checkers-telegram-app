@@ -79,9 +79,11 @@ export default {
     };
 
     const startGame = (gameData) => {
-        console.log('🎮 App.vue получил данные игры:', gameData);
-        gameStarted.value = true;
-        currentGame.value = gameData;
+      console.log('🎮 App.vue ПОЛУЧИЛ данные игры:', gameData);
+      console.log('🔄 Переключение на GameView');
+      gameStarted.value = true;
+      currentGame.value = gameData;
+      console.log('✅ currentGame установлен:', currentGame.value);
     };
 
     const backToMenu = () => {
