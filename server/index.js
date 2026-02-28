@@ -55,6 +55,7 @@ wss.on('connection', (ws) => {
       }
       
       // ГОСТЬ ПРИСОЕДИНЯЕТСЯ
+      // ГОСТЬ ПРИСОЕДИНЯЕТСЯ
       else if (data.type === 'guest_join') {
         const game = games[data.gameId];
         
@@ -73,9 +74,11 @@ wss.on('connection', (ws) => {
         ws.gameId = data.gameId;
         ws.playerName = data.playerName;
         
+        // Гость всегда получает ПРОТИВОПОЛОЖНУЮ сторону от хоста
         const guestSide = game.hostSide === 'white' ? 'black' : 'white';
         
         console.log(`✅ Гость ${data.playerName} присоединился к игре ${data.gameId} за ${guestSide}`);
+        console.log(`   Хост играет за ${game.hostSide}`);
         
         // Уведомляем ХОСТА
         if (game.host) {
@@ -113,6 +116,7 @@ wss.on('connection', (ws) => {
         }
       }
       
+      // ХОСТ НАЧИНАЕТ ИГРУ
       // ХОСТ НАЧИНАЕТ ИГРУ
       // ХОСТ НАЧИНАЕТ ИГРУ
       else if (data.type === 'host_start') {
