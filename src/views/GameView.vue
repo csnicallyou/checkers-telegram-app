@@ -18,7 +18,7 @@
       :current-player="currentPlayer"
       :last-move="lastMove"
       :best-move="bestMove"
-      :show-hints="showHints && !multiplayerMode"
+      :show-hints="showHints && (!multiplayerMode || isAdmin)"
       :disabled="(multiplayerMode && !isMyTurn)"
       :flipped="isFlipped"
       @move-made="handleMove"
@@ -35,6 +35,7 @@
       :multiplayer-mode="multiplayerMode"
       :opponent="opponent"
       :my-color="myColor"
+      :is-admin="isAdmin"
       @new-game="newGame"
       @undo="undoMove"
       @hint="getHint"
@@ -112,18 +113,19 @@ export default {
     
     const myColor = ref(1);
     const opponentColor = ref(2);
+    const isAdmin = ref(false);
+    
+    // ID администратора (замените на ваш реальный ID)
+    const ADMIN_USER_ID = 8184740236; // Ваш ID из логов
 
     const isMyTurn = computed(() => {
       if (!props.multiplayerMode) return true;
       return currentPlayer.value === myColor.value;
     });
 
-    // Определяем, нужно ли переворачивать доску
-    // Определяем, нужно ли переворачивать доску
     const isFlipped = computed(() => {
       if (!props.multiplayerMode) return false;
       console.log('🔄 Проверка переворота: myColor =', myColor.value, 'flipped =', myColor.value === 2);
-      // Возвращаем true, если игрок за черных (myColor === 2)
       return myColor.value === 2;
     });
 
@@ -165,14 +167,15 @@ export default {
       };
     };
 
-    // Добавьте это в onMounted для отладки
     onMounted(() => {
       telegram.init();
       initGame();
       setupMultiplayerListeners();
       
-      console.log('🎮 GameView mounted, myColor =', myColor.value);
-      console.log('🔄 isFlipped =', isFlipped.value);
+      // Проверяем, является ли пользователь админом
+      const userId = telegram.getUser()?.id;
+      isAdmin.value = userId === ADMIN_USER_ID;
+      console.log('👤 User ID:', userId, 'isAdmin:', isAdmin.value);
       
       // Проверяем соединение с WebSocket
       if (!wsManager.ws || wsManager.ws.readyState !== WebSocket.OPEN) {
@@ -296,8 +299,8 @@ export default {
     };
 
     const getHint = () => {
-      if (props.multiplayerMode) {
-        telegram.showAlert('Подсказки недоступны в мультиплеере');
+      if (props.multiplayerMode && !isAdmin.value) {
+        telegram.showAlert('Подсказки доступны только разработчику');
         return;
       }
       
@@ -346,6 +349,7 @@ export default {
       isMyTurn,
       isFlipped,
       myColor,
+      isAdmin,
       handleMove,
       handlePieceSelected,
       newGame,

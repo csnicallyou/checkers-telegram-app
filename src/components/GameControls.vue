@@ -30,7 +30,10 @@
         Отменить ход
       </button>
       
-      <button v-if="!multiplayerMode" @click="$emit('hint')" class="btn hint-btn" :disabled="isGettingHint">
+      <button v-if="!multiplayerMode || isAdmin" 
+              @click="$emit('hint')" 
+              class="btn hint-btn" 
+              :disabled="isGettingHint">
         {{ isGettingHint ? 'Поиск...' : 'Подсказка' }}
       </button>
       
@@ -98,6 +101,10 @@ export default {
     myColor: {
       type: Number,
       default: 1 // 1 - белые, 2 - черные
+    },
+    isAdmin: {
+      type: Boolean,
+      default: false
     }
   },
   emits: ['update:difficulty', 'update:showHints', 'new-game', 'undo', 'hint', 'back-to-menu']
