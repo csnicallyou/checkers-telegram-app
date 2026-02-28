@@ -169,10 +169,6 @@ export default {
             gameId.value = data.gameId;
             isHost.value = true;
             hostSide.value = data.side;
-            hostName.value = simpleGame.myName;
-            guestSide.value = null;
-            guestName.value = null;
-            guestReady.value = false;
         };
 
         simpleGame.onGuestJoined = (data) => {
@@ -188,7 +184,7 @@ export default {
                 gameId.value = data.gameId;
                 guestSide.value = data.mySide;
                 hostSide.value = data.hostSide;
-                hostName.value = data.hostName;
+                guestName.value = data.hostName; // Имя хоста для отображения
                 console.log(`✅ Гость подключился за ${data.mySide}, хост: ${data.hostName}`);
             }
         };
@@ -213,6 +209,8 @@ export default {
             gameId.value = null;
             isHost.value = false;
             guestSide.value = null;
+            guestName.value = null;
+            guestReady.value = false;
             error.value = '';
           }, 2000);
         };
@@ -220,6 +218,7 @@ export default {
         simpleGame.onGuestLeft = () => {
           if (isHost.value) {
             guestSide.value = null;
+            guestName.value = null;
             guestReady.value = false;
             error.value = 'Гость покинул игру';
             setTimeout(() => {
@@ -258,6 +257,23 @@ export default {
 
     const hostStartGame = () => {
         console.log('🎮 Хост нажимает кнопку "Начать игру"');
+        console.log('📋 Проверка данных:', {
+            gameId: gameId.value,
+            guestReady: guestReady.value,
+            guestName: guestName.value,
+            guestSide: guestSide.value
+        });
+        
+        if (!gameId.value) {
+            console.error('❌ Нет gameId');
+            return;
+        }
+        
+        if (!guestReady.value) {
+            console.error('❌ Гость не готов');
+            return;
+        }
+        
         simpleGame.hostStart();
     };
 
