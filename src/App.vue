@@ -40,7 +40,7 @@ import { ref, defineAsyncComponent } from 'vue';
 const ModeSelection = defineAsyncComponent(() => 
   import('./components/ModeSelection.vue')
 );
-const MultiplayerLobby = defineAsyncComponent(() => 
+const ColyseusLobby = defineAsyncComponent(() => 
   import('./components/ColyseusLobby.vue')
 );
 const GameView = defineAsyncComponent(() => 
@@ -51,7 +51,7 @@ export default {
   name: 'App',
   components: {
     ModeSelection,
-    MultiplayerLobby,
+    ColyseusLobby,
     GameView
   },
   setup() {
