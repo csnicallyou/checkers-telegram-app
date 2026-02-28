@@ -28,12 +28,18 @@ class SimpleGame {
             
             this.ws.onopen = () => {
                 this.connected = true;
+                console.log('✅ WebSocket connected');
                 resolve();
             };
             
             this.ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
+                console.error('❌ WebSocket error:', error);
                 reject(error);
+            };
+            
+            this.ws.onclose = () => {
+                console.log('🔴 WebSocket closed');
+                this.connected = false;
             };
             
             this.ws.onmessage = (e) => {
@@ -114,9 +120,28 @@ class SimpleGame {
         });
     }
 
+    // НОВЫЙ МЕТОД: проверка и восстановление соединения
+    async ensureConnection() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            console.log('✅ Соединение уже открыто');
+            return true;
+        }
+        
+        console.log('🔄 Переподключение к серверу...');
+        try {
+            await this.connect();
+            console.log('✅ Переподключено успешно');
+            return true;
+        } catch (err) {
+            console.error('❌ Ошибка переподключения:', err);
+            return false;
+        }
+    }
+
     hostCreate(side) {
         const playerName = this.getTelegramName();
         this.myName = playerName;
+        console.log('📤 Отправка host_create:', { side, playerName });
         this.ws.send(JSON.stringify({ 
             type: 'host_create', 
             side,
@@ -127,6 +152,7 @@ class SimpleGame {
     guestJoin(gameId) {
         const playerName = this.getTelegramName();
         this.myName = playerName;
+        console.log('📤 Отправка guest_join:', { gameId, playerName });
         this.ws.send(JSON.stringify({ 
             type: 'guest_join', 
             gameId: gameId.toUpperCase(),
@@ -135,6 +161,7 @@ class SimpleGame {
     }
 
     guestReady() {
+        console.log('📤 Отправка guest_ready:', { gameId: this.gameId });
         this.ws.send(JSON.stringify({ 
             type: 'guest_ready', 
             gameId: this.gameId 
@@ -149,8 +176,30 @@ class SimpleGame {
         }));
     }
 
+    // ИСПРАВЛЕННЫЙ МЕТОД: sendMove с проверкой соединения
     sendMove(move, board, currentPlayer) {
         console.log('📤 Отправка хода:', { move, currentPlayer });
+        
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            console.log('🔄 Сокет закрыт, пытаемся переподключиться перед отправкой');
+            this.ensureConnection().then(connected => {
+                if (connected) {
+                    console.log('✅ Переподключено, отправляем ход');
+                    // Пробуем отправить снова
+                    this.ws.send(JSON.stringify({
+                        type: 'move',
+                        gameId: this.gameId,
+                        move,
+                        board,
+                        currentPlayer
+                    }));
+                } else {
+                    console.error('❌ Не удалось переподключиться, ход не отправлен');
+                }
+            });
+            return;
+        }
+        
         this.ws.send(JSON.stringify({
             type: 'move',
             gameId: this.gameId,

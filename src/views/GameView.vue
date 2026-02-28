@@ -161,6 +161,24 @@ export default {
       telegram.init();
       initGame();
       setupMultiplayerListeners();
+      
+      // ВАЖНО: проверяем и восстанавливаем соединение
+      if (!simpleGame.connected || !simpleGame.ws || simpleGame.ws.readyState !== WebSocket.OPEN) {
+        console.log('🔄 WebSocket не подключен, переподключаемся...');
+        simpleGame.connect().then(() => {
+          console.log('✅ WebSocket переподключен');
+          // После переподключения восстанавливаем gameId
+          if (simpleGame.gameId !== gameId.value) {
+            simpleGame.gameId = gameId.value;
+          }
+        }).catch(err => {
+          console.error('❌ Ошибка переподключения:', err);
+        });
+      } else {
+        console.log('✅ WebSocket уже подключен');
+      }
+      
+      console.log('Игра запущена в режиме:', props.mode);
     });
 
     onUnmounted(() => {
