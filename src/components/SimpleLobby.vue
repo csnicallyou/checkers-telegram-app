@@ -136,11 +136,19 @@ export default {
       };
       
       simpleGame.onGuestConnected = (data) => {
-        gameId.value = data.gameId;
-        isHost.value = false;
-        guestSide.value = data.mySide;
-        hostSide.value = data.hostSide;
-      };
+        console.log('👋 Гость подключился к игре:', data);
+        
+        if (isHost.value) {
+            // Если мы хост, обновляем сторону гостя
+            guestSide.value = data.guestSide;
+            // НЕ выходим из комнаты, просто обновляем интерфейс
+        } else {
+            // Если мы гость, сохраняем свои данные
+            gameId.value = data.gameId;
+            guestSide.value = data.mySide;
+            hostSide.value = data.hostSide;
+        }
+       };
       
       simpleGame.onGuestReady = () => {
         guestReady.value = true;

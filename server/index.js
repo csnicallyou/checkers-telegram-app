@@ -48,6 +48,7 @@ wss.on('connection', (ws) => {
     }
     
     // ПРИСОЕДИНИТЬСЯ (ГОСТЬ)
+   // ПРИСОЕДИНИТЬСЯ (ГОСТЬ)
     else if (data.type === 'guest_join') {
       const game = games[data.gameId];
       
@@ -67,12 +68,17 @@ wss.on('connection', (ws) => {
       // Гость всегда играет противоположной стороной
       const guestSide = game.hostSide === 'white' ? 'black' : 'white';
       
-      // Уведомляем хоста
+      console.log(`✅ Гость присоединился к игре ${data.gameId} за ${guestSide}`);
+      
+      // Уведомляем хоста (ВАЖНО: проверяем что хост еще существует)
       if (game.host) {
         game.host.send(JSON.stringify({
           type: 'guest_connected',
           guestSide: guestSide
         }));
+        console.log(`📤 Уведомление отправлено хосту игры ${data.gameId}`);
+      } else {
+        console.log(`❌ Хост игры ${data.gameId} не найден`);
       }
       
       // Уведомляем гостя
@@ -82,8 +88,6 @@ wss.on('connection', (ws) => {
         mySide: guestSide,
         hostSide: game.hostSide
       }));
-      
-      console.log(`✅ Гость присоединился к игре ${data.gameId} за ${guestSide}`);
     }
     
     // ГОСТЬ ГОТОВ

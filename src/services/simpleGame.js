@@ -45,11 +45,13 @@ class SimpleGame {
                         break;
                         
                     case 'guest_connected':
-                        this.gameId = data.gameId;
-                        this.mySide = data.mySide;
-                        this.myColor = data.mySide === 'white' ? 1 : 2;
-                        this.isHost = false;
-                        if (this.onGuestConnected) this.onGuestConnected(data);
+                        if (this.onGuestConnected) {
+                            this.onGuestConnected({
+                                gameId: data.gameId,
+                                mySide: data.mySide,
+                                hostSide: data.hostSide
+                            });
+                        }
                         break;
                         
                     case 'guest_ready':
