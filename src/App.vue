@@ -79,10 +79,11 @@ export default {
     };
 
     const startGame = (gameData) => {
-      console.log('Запуск игры с данными:', gameData);
+      console.log('🎮 App.vue получил данные игры:', gameData);
       gameStarted.value = true;
-      currentGame.value = gameData; // Сохраняем ВСЕ данные
+      currentGame.value = gameData; // Сохраняем все данные
     };
+
 
     const backToMenu = () => {
       console.log('Возврат в меню');

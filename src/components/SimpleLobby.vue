@@ -223,17 +223,28 @@ export default {
       simpleMultiplayer.joinGame(gameCode.value, playerName.value);
     };
 
+
     const startGame = () => {
-        simpleMultiplayer.startGame();
-        // Передаем ВСЮ информацию о игре
-        emit('start-game', { 
-            id: gameId.value, 
+        console.log('🎮 Запуск игры с параметрами:', {
+            gameId: gameId.value,
             isHost: isHost.value,
-            side: selectedSide.value,  // сторона хоста
-            hostName: playerName.value,
-            guestName: opponent.value?.name
+            side: selectedSide.value,
+            playerName: playerName.value,
+            opponent: opponent.value
         });
-    };
+
+        simpleMultiplayer.startGame();
+        
+        // Передаем ВСЕ данные об игре
+        emit('start-game', { 
+            id: gameId.value,
+            isHost: isHost.value,
+            side: selectedSide.value,  // сторона текущего игрока
+            hostName: isHost.value ? playerName.value : opponent.value?.name,
+            guestName: isHost.value ? opponent.value?.name : playerName.value,
+            gameCode: gameId.value
+        });
+        };
 
     const copyCode = () => {
       navigator.clipboard.writeText(gameId.value);

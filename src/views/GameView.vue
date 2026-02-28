@@ -66,7 +66,7 @@
 </template>
 
 <script>
-import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import Board from '../components/Board.vue';
 import GameControls from '../components/GameControls.vue';
 import { GameLogic } from '../services/gameLogic';
@@ -110,8 +110,9 @@ export default {
     
     // Данные мультиплеера
     const playerColor = ref(1); // 1 - белые, 2 - черные
+    const playerSide = ref('white');
 
-    // Определяем, чей сейчас ход в мультиплеере
+    // Определяем, чей сейчас ход
     const isMyTurn = computed(() => {
       if (!props.multiplayerMode) return true;
       return currentPlayer.value === playerColor.value;
@@ -119,38 +120,46 @@ export default {
 
     // Определяем, нужно ли переворачивать доску
     const isFlipped = computed(() => {
-        if (!props.multiplayerMode) return false;
-        // Если игрок за черных (color 2), переворачиваем доску
-        return playerColor.value === 2;
+      if (!props.multiplayerMode) return false;
+      return playerColor.value === 2;
     });
 
-    // Инициализация мультиплеера из gameData
-    const initMultiplayer = () => {
+    // Инициализация игры из пропсов
+    const initGame = () => {
+      console.log('🎮 GameView инициализация с props:', props.gameData);
+      
       if (!props.multiplayerMode || !props.gameData) {
         console.log('❌ Нет данных мультиплеера');
         return;
       }
-      
-      console.log('🎮 Инициализация мультиплеера с данными:', props.gameData);
-      
+
       const { isHost, side, hostName, guestName } = props.gameData;
       
+      console.log('📊 Данные игры:', { isHost, side, hostName, guestName });
+
       if (isHost) {
         // Хост играет выбранной стороной
+        playerSide.value = side;
         playerColor.value = side === 'white' ? 1 : 2;
-        opponent.value = { name: guestName || 'Соперник' };
+        opponent.value = { name: guestName || 'Ожидание...' };
         console.log(`👑 Хост играет за ${side} (цвет ${playerColor.value})`);
       } else {
         // Гость играет противоположной стороной
         const guestSide = side === 'white' ? 'black' : 'white';
+        playerSide.value = guestSide;
         playerColor.value = guestSide === 'white' ? 1 : 2;
         opponent.value = { name: hostName || 'Хост' };
         console.log(`👤 Гость играет за ${guestSide} (цвет ${playerColor.value})`);
       }
+
+      // Устанавливаем начального игрока (всегда белые начинают)
+      currentPlayer.value = PLAYER_WHITE;
       
-      console.log('🎨 Итог:', {
+      console.log('✅ Игра инициализирована:', {
         playerColor: playerColor.value,
-        opponent: opponent.value?.name
+        playerSide: playerSide.value,
+        opponent: opponent.value?.name,
+        currentPlayer: currentPlayer.value
       });
     };
 
@@ -173,6 +182,7 @@ export default {
       };
 
       simpleMultiplayer.onOpponentLeft = () => {
+        console.log('👋 Соперник покинул игру');
         opponentDisconnected.value = true;
         telegram.showAlert('Соперник покинул игру');
       };
@@ -180,7 +190,7 @@ export default {
 
     onMounted(() => {
       telegram.init();
-      initMultiplayer();
+      initGame();
       setupMultiplayerListeners();
       
       console.log('Игра запущена в режиме:', props.mode);
@@ -382,6 +392,7 @@ export default {
 </script>
 
 <style scoped>
+/* Стили остаются без изменений */
 .game-view {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
