@@ -2,7 +2,6 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const cors = require('cors');
-const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const server = http.createServer(app);
@@ -30,7 +29,7 @@ app.get('/', (req, res) => {
 });
 
 wss.on('connection', (ws) => {
-  const clientId = uuidv4();
+  const clientId = Date.now() + Math.random();
   clients.set(clientId, { ws, gameId: null });
   
   console.log('🟢 Client connected:', clientId);
@@ -40,7 +39,7 @@ wss.on('connection', (ws) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-      console.log('📩 Received:', data.type, data);
+      console.log('📩 Received:', data.type);
 
       switch (data.type) {
         case 'create_game':
@@ -68,6 +67,7 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    console.log('🔴 Client disconnected:', clientId);
     handleDisconnect(clientId);
   });
 });
@@ -76,12 +76,9 @@ function handleCreateGame(clientId, side) {
   const client = clients.get(clientId);
   if (!client) return;
   
-  let gameId;
-  do {
-    gameId = Math.random().toString(36).substring(2, 8).toUpperCase();
-  } while (games.has(gameId));
+  const gameId = Math.random().toString(36).substring(2, 8).toUpperCase();
   
-  // Хост получает выбранную сторону, гость - противоположную
+  // Хост получает выбранную сторону
   const hostSide = side || 'white';
   const guestSide = hostSide === 'white' ? 'black' : 'white';
   
@@ -106,7 +103,7 @@ function handleCreateGame(clientId, side) {
     guestSide: guestSide
   }));
   
-  console.log(`✅ Game created: ${gameId} (host: ${hostSide}, guest: ${guestSide})`);
+  console.log(`✅ Game created: ${gameId} (host: ${hostSide})`);
 }
 
 function handleJoinGame(clientId, gameId) {
@@ -135,12 +132,13 @@ function handleJoinGame(clientId, gameId) {
   
   client.gameId = gameId;
   
-  // Уведомляем хоста
+  // Уведомляем хоста о подключении гостя
   const hostClient = clients.get(game.host.id);
   if (hostClient) {
     hostClient.ws.send(JSON.stringify({
       type: 'player_joined',
-      guestId: clientId
+      guestId: clientId,
+      guestSide: guestSide
     }));
   }
   
@@ -163,8 +161,10 @@ function handlePlayerReady(clientId, gameId, ready) {
   
   if (isHost) {
     game.host.ready = ready;
+    console.log(`✅ Host ready: ${gameId}`);
   } else if (game.guest && game.guest.id === clientId) {
     game.guest.ready = ready;
+    console.log(`✅ Guest ready: ${gameId}`);
   }
   
   // Уведомляем другого игрока
@@ -178,8 +178,6 @@ function handlePlayerReady(clientId, gameId, ready) {
       ready
     }));
   }
-  
-  console.log(`✅ Player ready: ${gameId} (${isHost ? 'host' : 'guest'}): ${ready}`);
 }
 
 function handleStartGame(clientId, gameId) {
@@ -189,13 +187,21 @@ function handleStartGame(clientId, gameId) {
   // Только хост может начать игру
   if (game.host.id !== clientId) return;
   
-  // Проверяем, что гость готов
-  if (!game.guest || !game.guest.ready) return;
+  // Проверяем, что гость есть и готов
+  if (!game.guest) {
+    console.log(`❌ No guest in game ${gameId}`);
+    return;
+  }
+  
+  if (!game.guest.ready) {
+    console.log(`❌ Guest not ready in game ${gameId}`);
+    return;
+  }
   
   const hostClient = clients.get(game.host.id);
   const guestClient = clients.get(game.guest.id);
   
-  // Отправляем обоим игрокам информацию для старта
+  // Отправляем хосту
   if (hostClient) {
     hostClient.ws.send(JSON.stringify({
       type: 'game_started',
@@ -204,8 +210,10 @@ function handleStartGame(clientId, gameId) {
       opponentName: 'Гость',
       opponentColor: game.guest.side === 'white' ? 1 : 2
     }));
+    console.log(`✅ Game start sent to host: ${gameId}`);
   }
   
+  // Отправляем гостю
   if (guestClient) {
     guestClient.ws.send(JSON.stringify({
       type: 'game_started',
@@ -214,6 +222,7 @@ function handleStartGame(clientId, gameId) {
       opponentName: 'Хост',
       opponentColor: game.host.side === 'white' ? 1 : 2
     }));
+    console.log(`✅ Game start sent to guest: ${gameId}`);
   }
   
   console.log(`🎮 Game started: ${gameId}`);
@@ -244,21 +253,29 @@ function handleLeaveGame(clientId) {
   const game = games.get(client.gameId);
   if (!game) return;
   
-  const otherId = game.host.id === clientId ? game.guest?.id : game.host.id;
+  // Определяем, кто уходит
+  const isHost = game.host.id === clientId;
+  const otherId = isHost ? game.guest?.id : game.host.id;
   const otherClient = clients.get(otherId);
   
+  // Уведомляем другого игрока
   if (otherClient) {
-    otherClient.ws.send(JSON.stringify({ type: 'opponent_left' }));
+    otherClient.ws.send(JSON.stringify({ 
+      type: 'opponent_left',
+      message: isHost ? 'Хост покинул игру' : 'Гость покинул игру'
+    }));
   }
   
+  // Удаляем игру
   games.delete(client.gameId);
   client.gameId = null;
+  
+  console.log(`👋 Player left game: ${client.gameId}`);
 }
 
 function handleDisconnect(clientId) {
   handleLeaveGame(clientId);
   clients.delete(clientId);
-  console.log('🔴 Client disconnected:', clientId);
 }
 
 const PORT = process.env.PORT || 3001;
