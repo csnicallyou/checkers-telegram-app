@@ -12,7 +12,7 @@
           @back-to-mode-selection="backToModeSelection"
           @game-created="handleGameCreated"
           @game-joined="handleGameJoined"
-          @start-game="startGame"
+          @start-game="startGame"   <!-- ДОЛЖНО БЫТЬ @start-game, НЕ @game-start -->
         />
         
         <GameView
@@ -79,11 +79,10 @@ export default {
     };
 
     const startGame = (gameData) => {
-      console.log('🎮 App.vue получил данные игры:', gameData);
-      gameStarted.value = true;
-      currentGame.value = gameData; // Сохраняем все данные
+        console.log('🎮 App.vue получил данные игры:', gameData);
+        gameStarted.value = true;
+        currentGame.value = gameData;
     };
-
 
     const backToMenu = () => {
       console.log('Возврат в меню');

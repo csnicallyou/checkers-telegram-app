@@ -196,7 +196,7 @@ export default {
 
         simpleGame.onGameStart = (data) => {
             console.log('🎮 ПОЛУЧЕНО СОБЫТИЕ game_start:', data);
-            emit('game-start', {
+            emit('start-game', {  // ИЗМЕНИТЕ С 'game-start' НА 'start-game'
                 myColor: data.myColor,
                 opponentColor: data.opponentColor,
                 opponentName: data.opponentName
