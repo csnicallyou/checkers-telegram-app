@@ -142,6 +142,17 @@ class SimpleGame {
                                 console.log(`🎮 Game start: myColor=${this.myColor}, opponent=${this.opponentName}, opponentColor=${this.opponentColor}`);
                                 if (this.onGameStart) this.onGameStart(data);
                                 break;
+
+                            case 'game_state_update':
+                                console.log('📩 Получено обновление состояния игры');
+                                if (this.onGameStateUpdate) {
+                                    this.onGameStateUpdate({
+                                        board: data.board,
+                                        currentPlayer: data.currentPlayer,
+                                        lastMove: data.lastMove
+                                    });
+                                }
+                                break;
                                 
                             case 'opponent_move':
                                 console.log('📩 Получен ход соперника:', data);

@@ -55,14 +55,17 @@ wss.on('connection', (ws) => {
         } else {
           ws.send(JSON.stringify({ 
             type: 'error', 
-            message: 'Игрок не найден в этой игре' 
+            message: 'Игрок не найдена в этой игре' 
           }));
           return;
         }
         
+        // Отправляем текущее состояние игры
         ws.send(JSON.stringify({ 
           type: 'reconnect_success',
-          gameId: data.gameId
+          gameId: data.gameId,
+          board: game.board,
+          currentPlayer: game.currentPlayer
         }));
       }
 
@@ -77,6 +80,8 @@ wss.on('connection', (ws) => {
           guest: null,
           guestName: null,
           guestReady: false,
+          board: null,
+          currentPlayer: 1, // Белые ходят первыми
           created: Date.now()
         };
         
@@ -177,6 +182,10 @@ wss.on('connection', (ws) => {
         console.log(`   Хост: ${game.hostName} (${game.hostSide})`);
         console.log(`   Гость: ${game.guestName} (${game.hostSide === 'white' ? 'black' : 'white'})`);
         
+        // Инициализируем доску (пустая, клиент сам создаст начальную позицию)
+        game.board = null;
+        game.currentPlayer = 1;
+        
         // Отправляем хосту
         if (game.host) {
           game.host.send(JSON.stringify({
@@ -200,7 +209,7 @@ wss.on('connection', (ws) => {
         }
       }
       
-      // ХОД
+      // ХОД с валидацией на сервере
       else if (data.type === 'move') {
         const game = games[data.gameId];
         if (!game) {
@@ -208,25 +217,41 @@ wss.on('connection', (ws) => {
           return;
         }
         
-        console.log(`♟️ Ход в игре ${data.gameId}`);
-        console.log(`   От: ${game.host === ws ? game.hostName : game.guestName}`);
+        // Проверяем, что ходит правильный игрок
+        const isHost = game.host === ws;
+        const currentPlayerColor = isHost ? 
+          (game.hostSide === 'white' ? 1 : 2) : 
+          (game.hostSide === 'white' ? 2 : 1);
         
-        const target = game.host === ws ? game.guest : game.host;
-        if (target && target.readyState === WebSocket.OPEN) {
-          const targetName = game.host === ws ? game.guestName : game.hostName;
-          console.log(`   Кому: ${targetName}`);
-          
-          target.send(JSON.stringify({
-            type: 'opponent_move',
-            move: data.move,
-            board: data.board,
-            currentPlayer: data.currentPlayer
-          }));
-          console.log(`✅ Ход отправлен`);
-        } else {
-          console.log(`❌ Целевой игрок не найден или не в сети`);
+        // Проверяем, что сейчас действительно ход этого игрока
+        if (currentPlayerColor !== game.currentPlayer) {
+          console.log(`❌ Неправильный игрок пытается ходить. Текущий ход: ${game.currentPlayer}, игрок: ${currentPlayerColor}`);
+          ws.send(JSON.stringify({ type: 'error', message: 'Сейчас не ваш ход' }));
+          return;
         }
+        
+        console.log(`♟️ Ход в игре ${data.gameId} от ${isHost ? game.hostName : game.guestName}`);
+        
+        // Сохраняем состояние доски на сервере
+        game.board = data.board;
+        game.currentPlayer = data.currentPlayer;
+        
+        console.log(`✅ Ход выполнен, теперь ход ${game.currentPlayer === 1 ? 'белых' : 'черных'}`);
+        
+        // Рассылаем обновление ВСЕМ подключенным клиентам
+        const clients = [game.host, game.guest].filter(c => c && c.readyState === WebSocket.OPEN);
+        clients.forEach(client => {
+          client.send(JSON.stringify({
+            type: 'game_state_update',
+            board: game.board,
+            currentPlayer: game.currentPlayer,
+            lastMove: data.move
+          }));
+        });
+        
+        console.log(`📤 Обновление разослано ${clients.length} клиентам`);
       }
+      
     } catch (error) {
       console.error('❌ Ошибка обработки сообщения:', error);
     }
@@ -271,4 +296,5 @@ wss.on('connection', (ws) => {
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Сервер запущен на порту ${PORT}`);
+  console.log(`📊 Игры хранятся в памяти`);
 });

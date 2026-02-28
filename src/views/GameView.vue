@@ -185,6 +185,15 @@ export default {
         telegram.vibrate('light');
       };
 
+      simpleGame.onGameStateUpdate = (data) => {
+          console.log('🔄 Обновление состояния игры:', data);
+          board.value = data.board;
+          currentPlayer.value = data.currentPlayer;
+          if (data.lastMove) {
+              lastMove.value = [[data.lastMove[0], data.lastMove[1]], [data.lastMove[2], data.lastMove[3]]];
+          }
+      };
+
       simpleGame.onHostLeft = () => {
         console.log('👋 Хост покинул игру');
         opponentDisconnected.value = true;
@@ -289,8 +298,8 @@ export default {
           currentCaptureChain.value = [endRow, endCol];
           
           if (props.multiplayerMode) {
-            console.log('📤 Отправка хода сопернику (продолжение боя)');
-            simpleGame.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
+              console.log('📤 Отправка хода на сервер');
+              simpleGame.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
           }
           
           telegram.showNotification('Можете продолжать бой!');
