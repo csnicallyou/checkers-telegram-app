@@ -1,34 +1,23 @@
-// src/services/telegramMultiplayer.js
 class TelegramMultiplayer {
     constructor() {
         this.ws = null;
         this.gameId = null;
         this.playerId = null;
-        this.playerRole = null; // 'host' или 'guest'
-        this.playerColor = null; // 1 - белые, 2 - черные
+        this.playerRole = null;
+        this.playerColor = null;
         this.opponent = null;
         this.connected = false;
         
         this.serverUrl = import.meta.env.VITE_SERVER_URL || 'wss://checkers-server-0y7z.onrender.com';
         
-        // Колбэки
         this.onGameCreated = null;
         this.onGameJoined = null;
+        this.onPlayerJoined = null;
+        this.onPlayerReady = null;
         this.onGameStarted = null;
         this.onOpponentMove = null;
         this.onOpponentLeft = null;
         this.onError = null;
-    }
-
-    async createGame(side) {
-    if (!this.connected) {
-        await this.connect();
-    }
-    this.send('create_game', { side });
-    }
-
-    async sendReady(gameId, ready) {
-        this.send('player_ready', { gameId, ready });
     }
 
     connect() {
@@ -50,6 +39,7 @@ class TelegramMultiplayer {
                 this.ws.onmessage = (event) => {
                     try {
                         const data = JSON.parse(event.data);
+                        console.log('📩 Received:', data);
                         this.handleMessage(data);
                     } catch (e) {
                         console.error('Error parsing message:', e);
@@ -68,8 +58,6 @@ class TelegramMultiplayer {
     }
 
     handleMessage(data) {
-        console.log('📩 Received:', data);
-        
         switch (data.type) {
             case 'connected':
                 this.playerId = data.clientId;
@@ -78,29 +66,53 @@ class TelegramMultiplayer {
             case 'game_created':
                 this.gameId = data.gameId;
                 this.playerRole = 'host';
-                this.playerColor = data.color;
-                if (this.onGameCreated) this.onGameCreated(data);
-                break;
-
-            case 'player_joined':
-                this.opponent = { name: data.guestName };
-                if (this.onPlayerJoined) this.onPlayerJoined(data);
-                break;
-        
-            case 'player_ready':
-                if (this.onPlayerReady) this.onPlayerReady(data);
+                this.playerColor = data.hostSide === 'white' ? 1 : 2;
+                if (this.onGameCreated) {
+                    this.onGameCreated({
+                        gameId: data.gameId,
+                        hostSide: data.hostSide,
+                        guestSide: data.guestSide
+                    });
+                }
                 break;
                 
             case 'game_joined':
                 this.gameId = data.gameId;
                 this.playerRole = 'guest';
-                this.playerColor = data.color;
-                this.opponent = { name: data.hostName };
-                if (this.onGameJoined) this.onGameJoined(data);
+                this.playerColor = data.guestSide === 'white' ? 1 : 2;
+                if (this.onGameJoined) {
+                    this.onGameJoined({
+                        gameId: data.gameId,
+                        hostSide: data.hostSide,
+                        guestSide: data.guestSide
+                    });
+                }
+                break;
+                
+            case 'player_joined':
+                if (this.onPlayerJoined) {
+                    this.onPlayerJoined(data);
+                }
+                break;
+                
+            case 'player_ready':
+                if (this.onPlayerReady) {
+                    this.onPlayerReady({
+                        role: data.role,
+                        ready: data.ready
+                    });
+                }
                 break;
                 
             case 'game_started':
-                if (this.onGameStarted) this.onGameStarted(data);
+                if (this.onGameStarted) {
+                    this.onGameStarted({
+                        playerRole: data.playerRole,
+                        playerColor: data.playerColor,
+                        opponentName: data.opponentName,
+                        opponentColor: data.opponentColor
+                    });
+                }
                 break;
                 
             case 'opponent_move':
@@ -108,7 +120,6 @@ class TelegramMultiplayer {
                 break;
                 
             case 'opponent_left':
-                this.opponent = null;
                 if (this.onOpponentLeft) this.onOpponentLeft();
                 break;
                 
@@ -118,11 +129,11 @@ class TelegramMultiplayer {
         }
     }
 
-    async createGame() {
+    async createGame(side) {
         if (!this.connected) {
             await this.connect();
         }
-        this.send('create_game', {});
+        this.send('create_game', { side });
     }
 
     async joinGame(gameId) {
@@ -132,8 +143,12 @@ class TelegramMultiplayer {
         this.send('join_game', { gameId: gameId.toUpperCase() });
     }
 
-    startGame() {
-        this.send('start_game', { gameId: this.gameId });
+    sendReady(gameId, ready) {
+        this.send('player_ready', { gameId, ready });
+    }
+
+    startGame(gameId) {
+        this.send('start_game', { gameId });
     }
 
     sendMove(move, board, currentPlayer) {
@@ -154,8 +169,6 @@ class TelegramMultiplayer {
         this.playerColor = null;
         this.opponent = null;
     }
-
-    
 
     send(type, data) {
         if (this.ws && this.connected) {

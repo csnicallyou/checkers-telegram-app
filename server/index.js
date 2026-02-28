@@ -40,14 +40,17 @@ wss.on('connection', (ws) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-      console.log('📩 Received:', data.type);
+      console.log('📩 Received:', data.type, data);
 
       switch (data.type) {
         case 'create_game':
-          handleCreateGame(clientId);
+          handleCreateGame(clientId, data.side);
           break;
         case 'join_game':
           handleJoinGame(clientId, data.gameId);
+          break;
+        case 'player_ready':
+          handlePlayerReady(clientId, data.gameId, data.ready);
           break;
         case 'start_game':
           handleStartGame(clientId, data.gameId);
@@ -57,9 +60,6 @@ wss.on('connection', (ws) => {
           break;
         case 'leave_game':
           handleLeaveGame(clientId);
-          break;
-        case 'player_ready':
-          handlePlayerReady(clientId, data.gameId, data.ready);
           break;
       }
     } catch (error) {
@@ -72,7 +72,7 @@ wss.on('connection', (ws) => {
   });
 });
 
-function handleCreateGame(clientId) {
+function handleCreateGame(clientId, side) {
   const client = clients.get(clientId);
   if (!client) return;
   
@@ -81,11 +81,16 @@ function handleCreateGame(clientId) {
     gameId = Math.random().toString(36).substring(2, 8).toUpperCase();
   } while (games.has(gameId));
   
+  // Хост получает выбранную сторону, гость - противоположную
+  const hostSide = side || 'white';
+  const guestSide = hostSide === 'white' ? 'black' : 'white';
+  
   const game = {
     id: gameId,
     host: {
       id: clientId,
-      color: 1 // белые
+      side: hostSide,
+      ready: false
     },
     guest: null,
     created: Date.now()
@@ -97,10 +102,11 @@ function handleCreateGame(clientId) {
   client.ws.send(JSON.stringify({
     type: 'game_created',
     gameId,
-    color: 1
+    hostSide: hostSide,
+    guestSide: guestSide
   }));
   
-  console.log(`✅ Game created: ${gameId}`);
+  console.log(`✅ Game created: ${gameId} (host: ${hostSide}, guest: ${guestSide})`);
 }
 
 function handleJoinGame(clientId, gameId) {
@@ -118,9 +124,13 @@ function handleJoinGame(clientId, gameId) {
     return;
   }
   
+  // Гость получает противоположную сторону
+  const guestSide = game.host.side === 'white' ? 'black' : 'white';
+  
   game.guest = {
     id: clientId,
-    color: 2 // черные
+    side: guestSide,
+    ready: false
   };
   
   client.gameId = gameId;
@@ -129,8 +139,8 @@ function handleJoinGame(clientId, gameId) {
   const hostClient = clients.get(game.host.id);
   if (hostClient) {
     hostClient.ws.send(JSON.stringify({
-      type: 'game_joined',
-      gameId
+      type: 'player_joined',
+      guestId: clientId
     }));
   }
   
@@ -138,50 +148,71 @@ function handleJoinGame(clientId, gameId) {
   client.ws.send(JSON.stringify({
     type: 'game_joined',
     gameId,
-    hostColor: 1,
-    color: 2
+    hostSide: game.host.side,
+    guestSide: guestSide
   }));
   
-  console.log(`✅ Guest joined: ${gameId}`);
+  console.log(`✅ Guest joined: ${gameId} (guest: ${guestSide})`);
 }
 
 function handlePlayerReady(clientId, gameId, ready) {
-    const game = games.get(gameId);
-    if (!game) return;
-    
-    const isHost = game.host.id === clientId;
-    const otherId = isHost ? game.guest?.id : game.host.id;
-    const otherClient = clients.get(otherId);
-    
-    if (otherClient) {
-        otherClient.ws.send(JSON.stringify({
-            type: 'player_ready',
-            role: isHost ? 'host' : 'guest',
-            ready
-        }));
-    }
+  const game = games.get(gameId);
+  if (!game) return;
+  
+  const isHost = game.host.id === clientId;
+  
+  if (isHost) {
+    game.host.ready = ready;
+  } else if (game.guest && game.guest.id === clientId) {
+    game.guest.ready = ready;
+  }
+  
+  // Уведомляем другого игрока
+  const otherId = isHost ? game.guest?.id : game.host.id;
+  const otherClient = clients.get(otherId);
+  
+  if (otherClient) {
+    otherClient.ws.send(JSON.stringify({
+      type: 'player_ready',
+      role: isHost ? 'host' : 'guest',
+      ready
+    }));
+  }
+  
+  console.log(`✅ Player ready: ${gameId} (${isHost ? 'host' : 'guest'}): ${ready}`);
 }
 
 function handleStartGame(clientId, gameId) {
   const game = games.get(gameId);
   if (!game) return;
   
-  const hostClient = clients.get(game.host.id);
-  const guestClient = clients.get(game.guest?.id);
+  // Только хост может начать игру
+  if (game.host.id !== clientId) return;
   
+  // Проверяем, что гость готов
+  if (!game.guest || !game.guest.ready) return;
+  
+  const hostClient = clients.get(game.host.id);
+  const guestClient = clients.get(game.guest.id);
+  
+  // Отправляем обоим игрокам информацию для старта
   if (hostClient) {
     hostClient.ws.send(JSON.stringify({
       type: 'game_started',
-      color: 1,
-      opponentColor: 2
+      playerRole: 'host',
+      playerColor: game.host.side === 'white' ? 1 : 2,
+      opponentName: 'Гость',
+      opponentColor: game.guest.side === 'white' ? 1 : 2
     }));
   }
   
   if (guestClient) {
     guestClient.ws.send(JSON.stringify({
       type: 'game_started',
-      color: 2,
-      opponentColor: 1
+      playerRole: 'guest',
+      playerColor: game.guest.side === 'white' ? 1 : 2,
+      opponentName: 'Хост',
+      opponentColor: game.host.side === 'white' ? 1 : 2
     }));
   }
   
