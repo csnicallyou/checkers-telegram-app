@@ -1,9 +1,8 @@
 // server/rooms/GameState.js
-const schema = require('colyseus').Schema;
-const { MapSchema, ArraySchema } = require('@colyseus/schema');
+const { Schema, MapSchema, defineTypes } = require('@colyseus/schema');
 
 // Класс для игрока
-class Player extends schema.Schema {
+class Player extends Schema {
     constructor(id, name) {
         super();
         this.id = id;
@@ -12,7 +11,7 @@ class Player extends schema.Schema {
         this.connected = true;
     }
 }
-schema.defineTypes(Player, {
+defineTypes(Player, {
     id: "string",
     name: "string",
     color: "number",
@@ -20,7 +19,7 @@ schema.defineTypes(Player, {
 });
 
 // Класс для состояния игры
-class GameState extends schema.Schema {
+class GameState extends Schema {
     constructor() {
         super();
         this.board = this.initializeBoard();
@@ -70,22 +69,22 @@ class GameState extends schema.Schema {
     }
 
     makeMove(startRow, startCol, endRow, endCol) {
-        // Здесь будет логика проверки хода
-        // Пока просто сохраняем ход
         this.lastMove = { startRow, startCol, endRow, endCol };
-        
-        // Меняем игрока
         this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
-        
         return true;
     }
 }
-schema.defineTypes(GameState, {
+defineTypes(GameState, {
     board: ["number"],
     currentPlayer: "number",
     players: { map: Player },
     winner: "number",
-    lastMove: { startRow: "number", startCol: "number", endRow: "number", endCol: "number" }
+    lastMove: { 
+        startRow: "number", 
+        startCol: "number", 
+        endRow: "number", 
+        endCol: "number" 
+    }
 });
 
 module.exports = { GameState, Player };
