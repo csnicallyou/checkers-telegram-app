@@ -81,6 +81,7 @@ import { telegram } from '../services/telegram';
 import { wsManager } from '../services/websocket';
 import { PLAYER_WHITE, PLAYER_BLACK } from '../utils/constants';
 import { adminManager } from '../services/adminManager';
+import { strongAI } from '../services/strongAI';
 
 export default {
   name: 'GameView',
@@ -312,14 +313,26 @@ export default {
       isGettingHint.value = true;
       bestMove.value = null;
       
+      // Используем усиленный ИИ
       setTimeout(() => {
-        const hint = LocalAI.getHint(board.value, currentPlayer.value);
-        if (hint) {
-          bestMove.value = hint;
-          const [startRow, startCol, endRow, endCol] = hint;
-          telegram.showNotification(`Подсказка: с (${startRow+1},${startCol+1}) на (${endRow+1},${endCol+1})`);
+        try {
+          console.log('🤖 Запуск усиленного ИИ...');
+          const hint = strongAI.getBestMove(board.value, currentPlayer.value);
+          
+          if (hint) {
+            bestMove.value = hint;
+            const [startRow, startCol, endRow, endCol] = hint;
+            telegram.showNotification(`🤖 Подсказка: с (${startRow+1},${startCol+1}) на (${endRow+1},${endCol+1})`);
+            console.log('✅ Подсказка найдена');
+          } else {
+            telegram.showAlert('❌ Не удалось найти хороший ход');
+          }
+        } catch (error) {
+          console.error('❌ Ошибка ИИ:', error);
+          telegram.showAlert('Ошибка при расчете подсказки');
+        } finally {
+          isGettingHint.value = false;
         }
-        isGettingHint.value = false;
       }, 100);
     };
 
