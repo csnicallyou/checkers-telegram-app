@@ -76,6 +76,7 @@ import { LocalAI } from '../services/localAI';
 import { telegram } from '../services/telegram';
 import { wsManager } from '../services/websocket';
 import { PLAYER_WHITE, PLAYER_BLACK } from '../utils/constants';
+import { adminManager } from '../services/adminManager';
 
 export default {
   name: 'GameView',
@@ -116,7 +117,7 @@ export default {
     const isAdmin = ref(false);
     
     // ID администратора (замените на ваш реальный ID)
-    const ADMIN_USER_ID = 8184740236; // Ваш ID из логов
+    const ADMIN_USER_ID = 8147229815; // Ваш ID из логов
 
     const isMyTurn = computed(() => {
       if (!props.multiplayerMode) return true;
@@ -172,23 +173,21 @@ export default {
       initGame();
       setupMultiplayerListeners();
       
-      // Проверяем, является ли пользователь админом
+      // Проверяем, является ли пользователь админом через adminManager
       const userId = telegram.getUser()?.id;
-      isAdmin.value = userId === ADMIN_USER_ID;
+      isAdmin.value = adminManager.isAdmin(userId);
       console.log('👤 User ID:', userId, 'isAdmin:', isAdmin.value);
       
-      // Проверяем соединение с WebSocket
-      if (!wsManager.ws || wsManager.ws.readyState !== WebSocket.OPEN) {
-        console.log('🔄 WebSocket не подключен, подключаемся...');
-        wsManager.connect().catch(err => {
-          console.error('❌ Ошибка подключения:', err);
-        });
-      } else {
-        console.log('✅ WebSocket уже подключен');
+      // Если пользователь не админ, проверяем есть ли запрос
+      if (!isAdmin.value && userId) {
+        const request = adminManager.checkRequest(userId);
+        if (request && request.gameId === gameId.value) {
+          // Автоматически выдаем админку на эту игру
+          isAdmin.value = true;
+          adminManager.removeRequest(userId);
+          telegram.showNotification('✨ Вы получили временные права администратора на эту игру!');
+        }
       }
-      
-      console.log('Игра запущена в режиме:', props.mode);
-    });
 
     onUnmounted(() => {
       // Очищаем только колбэки, соединение оставляем
