@@ -35,6 +35,7 @@
 
 <script>
 import { ref, defineAsyncComponent } from 'vue';
+import { simpleGame } from './services/simpleGame'; // ← ДОБАВЬТЕ ЭТУ СТРОКУ
 
 // Ленивая загрузка компонентов
 const ModeSelection = defineAsyncComponent(() => 
@@ -80,14 +81,13 @@ export default {
 
     const startGame = (gameData) => {
         console.log('🎮 App.vue получил данные игры:', gameData);
-        // Проверяем, что у simpleGame есть gameId
-        console.log('📌 simpleGame.gameId:', simpleGame.gameId);
+        console.log('📌 simpleGame.gameId:', simpleGame?.gameId);
         
         gameStarted.value = true;
         // Сохраняем gameId и данные
         currentGame.value = {
             ...gameData,
-            gameId: simpleGame.gameId || gameData.gameId
+            gameId: simpleGame?.gameId || gameData.gameId
         };
     };
 
