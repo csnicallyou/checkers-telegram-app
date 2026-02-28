@@ -59,11 +59,10 @@ app.get('/api/game/:id', (req, res) => {
 // WebSocket сервер
 wss.on('connection', (ws) => {
   const clientId = uuidv4();
-  clients.set(clientId, { ws, gameId: null, playerName: null, isHost: false });
+  clients.set(clientId, { ws, gameId: null, playerName: null, isHost: false, ready: false });
   
   console.log('🟢 Клиент подключился:', clientId);
   
-  // Отправляем клиенту его ID
   ws.send(JSON.stringify({ 
     type: 'connected', 
     clientId,
@@ -86,6 +85,10 @@ wss.on('connection', (ws) => {
           
         case 'select_side':
           handleSelectSide(clientId, data.gameId, data.side);
+          break;
+          
+        case 'player_ready':
+          handlePlayerReady(clientId, data.gameId);
           break;
           
         case 'start_game':
@@ -114,30 +117,30 @@ function handleCreateGame(clientId, playerName, side = 'white') {
   const client = clients.get(clientId);
   if (!client) return;
   
-  // Генерируем уникальный код игры
   let gameId;
   do {
     gameId = Math.random().toString(36).substring(2, 8).toUpperCase();
   } while (games.has(gameId));
   
-  // Создаем игру
-  games.set(gameId, {
+  const game = {
     id: gameId,
     host: {
       id: clientId,
       name: playerName,
-      side: side
+      side: side,
+      ready: false
     },
     guest: null,
     created: Date.now()
-  });
+  };
   
-  // Обновляем клиента
+  games.set(gameId, game);
+  
   client.gameId = gameId;
   client.playerName = playerName;
   client.isHost = true;
+  client.ready = false;
   
-  // Отправляем подтверждение
   client.ws.send(JSON.stringify({
     type: 'game_created',
     gameId,
@@ -154,38 +157,30 @@ function handleJoinGame(clientId, gameId, playerName) {
   
   const game = games.get(gameId);
   if (!game) {
-    client.ws.send(JSON.stringify({ 
-      type: 'error', 
-      message: 'Игра не найдена' 
-    }));
+    client.ws.send(JSON.stringify({ type: 'error', message: 'Игра не найдена' }));
     return;
   }
   
   if (game.guest) {
-    client.ws.send(JSON.stringify({ 
-      type: 'error', 
-      message: 'Игра уже заполнена' 
-    }));
+    client.ws.send(JSON.stringify({ type: 'error', message: 'Игра уже заполнена' }));
     return;
   }
   
-  // Определяем сторону для гостя (противоположная хосту)
   const hostSide = game.host.side;
   const guestSide = hostSide === 'white' ? 'black' : 'white';
   
-  // Добавляем гостя
   game.guest = {
     id: clientId,
     name: playerName,
-    side: guestSide
+    side: guestSide,
+    ready: false
   };
   
-  // Обновляем клиента
   client.gameId = gameId;
   client.playerName = playerName;
   client.isHost = false;
+  client.ready = false;
   
-  // Уведомляем хоста
   const hostClient = clients.get(game.host.id);
   if (hostClient) {
     hostClient.ws.send(JSON.stringify({
@@ -194,7 +189,6 @@ function handleJoinGame(clientId, gameId, playerName) {
     }));
   }
   
-  // Уведомляем гостя
   client.ws.send(JSON.stringify({
     type: 'game_joined',
     gameId,
@@ -205,40 +199,53 @@ function handleJoinGame(clientId, gameId, playerName) {
   console.log(`✅ ${playerName} присоединился к игре ${gameId} (сторона: ${guestSide})`);
 }
 
-function handleSelectSide(clientId, gameId, side) {
+function handlePlayerReady(clientId, gameId) {
+  const client = clients.get(clientId);
+  if (!client) return;
+  
   const game = games.get(gameId);
   if (!game) return;
   
-  // Только хост может менять сторону
-  if (game.host.id !== clientId) return;
+  // Отмечаем игрока как готового
+  client.ready = true;
   
-  // Меняем сторону хоста
-  game.host.side = side;
+  if (client.isHost) {
+    game.host.ready = true;
+  } else {
+    game.guest.ready = true;
+  }
   
-  // Уведомляем хоста
-  const hostClient = clients.get(clientId);
-  if (hostClient) {
-    hostClient.ws.send(JSON.stringify({
-      type: 'side_selected',
-      side: side
+  console.log(`✅ Игрок ${client.playerName} готов (${client.isHost ? 'хост' : 'гость'})`);
+  
+  // Уведомляем другого игрока о готовности
+  const otherId = client.isHost ? game.guest?.id : game.host.id;
+  const otherClient = clients.get(otherId);
+  
+  if (otherClient) {
+    otherClient.ws.send(JSON.stringify({
+      type: 'opponent_ready',
+      player: client.playerName
     }));
   }
   
-  // Если есть гость, уведомляем его об изменении стороны
-  if (game.guest) {
+  // Проверяем, готовы ли оба
+  const hostReady = game.host?.ready || false;
+  const guestReady = game.guest?.ready || false;
+  
+  if (hostReady && guestReady) {
+    console.log(`🎮 Оба игрока готовы в игре ${gameId}`);
+    
+    // Уведомляем обоих, что можно начинать
+    const hostClient = clients.get(game.host.id);
     const guestClient = clients.get(game.guest.id);
+    
+    if (hostClient) {
+      hostClient.ws.send(JSON.stringify({ type: 'both_ready' }));
+    }
     if (guestClient) {
-      const guestSide = side === 'white' ? 'black' : 'white';
-      game.guest.side = guestSide;
-      
-      guestClient.ws.send(JSON.stringify({
-        type: 'side_selected',
-        side: guestSide
-      }));
+      guestClient.ws.send(JSON.stringify({ type: 'both_ready' }));
     }
   }
-  
-  console.log(`🔄 Игра ${gameId}: хост сменил сторону на ${side}`);
 }
 
 function handleStartGame(clientId, gameId) {
@@ -248,13 +255,11 @@ function handleStartGame(clientId, gameId) {
     return;
   }
   
-  // Проверяем, что хост начинает игру
   if (game.host.id !== clientId) {
     console.log(`❌ Только хост может начать игру ${gameId}`);
     return;
   }
   
-  // Проверяем, что есть гость
   if (!game.guest) {
     console.log(`❌ Нет гостя в игре ${gameId}`);
     return;
@@ -264,40 +269,34 @@ function handleStartGame(clientId, gameId) {
   console.log(`   Хост: ${game.host.name} (${game.host.side})`);
   console.log(`   Гость: ${game.guest.name} (${game.guest.side})`);
   
-  // Отправляем уведомление всем игрокам в комнате
   const hostClient = clients.get(game.host.id);
   const guestClient = clients.get(game.guest.id);
   
-  const startMessage = JSON.stringify({ 
-    type: 'game_started', 
+  // Подробная информация для каждого игрока
+  const hostMessage = JSON.stringify({
+    type: 'game_started',
     gameId,
-    host: { name: game.host.name, side: game.host.side },
-    guest: { name: game.guest.name, side: game.guest.side }
+    isHost: true,
+    side: game.host.side,
+    opponent: game.guest.name
   });
   
-  let hostSent = false;
-  let guestSent = false;
+  const guestMessage = JSON.stringify({
+    type: 'game_started',
+    gameId,
+    isHost: false,
+    side: game.guest.side,
+    opponent: game.host.name
+  });
   
   if (hostClient && hostClient.ws.readyState === WebSocket.OPEN) {
-    hostClient.ws.send(startMessage);
-    hostSent = true;
+    hostClient.ws.send(hostMessage);
     console.log(`✅ Уведомление отправлено хосту ${game.host.name}`);
-  } else {
-    console.log(`❌ Хост ${game.host.name} не в сети`);
   }
   
   if (guestClient && guestClient.ws.readyState === WebSocket.OPEN) {
-    guestClient.ws.send(startMessage);
-    guestSent = true;
+    guestClient.ws.send(guestMessage);
     console.log(`✅ Уведомление отправлено гостю ${game.guest.name}`);
-  } else {
-    console.log(`❌ Гость ${game.guest.name} не в сети`);
-  }
-  
-  if (hostSent && guestSent) {
-    console.log(`🎉 Игра ${gameId} успешно запущена для обоих игроков`);
-  } else {
-    console.log(`⚠️ Игра ${gameId} запущена не полностью`);
   }
 }
 
@@ -306,7 +305,6 @@ function handleMakeMove(clientId, data) {
   const game = games.get(gameId);
   if (!game) return;
   
-  // Определяем получателя хода
   const targetId = game.host.id === clientId ? game.guest?.id : game.host.id;
   const targetClient = clients.get(targetId);
   
@@ -327,23 +325,19 @@ function handleLeaveGame(clientId) {
   const game = games.get(client.gameId);
   if (!game) return;
   
-  // Уведомляем другого игрока
   const otherId = game.host.id === clientId ? game.guest?.id : game.host.id;
   const otherClient = clients.get(otherId);
   
   if (otherClient) {
-    otherClient.ws.send(JSON.stringify({ 
-      type: 'opponent_left' 
-    }));
+    otherClient.ws.send(JSON.stringify({ type: 'opponent_left' }));
   }
   
-  // Удаляем игру
   games.delete(client.gameId);
   
-  // Очищаем клиента
   client.gameId = null;
   client.playerName = null;
   client.isHost = false;
+  client.ready = false;
   
   console.log(`👋 Игрок покинул игру ${client.gameId}`);
 }
@@ -354,7 +348,7 @@ function handleDisconnect(clientId) {
   console.log('🔴 Клиент отключился:', clientId);
 }
 
-// Очистка старых игр (каждые 30 минут)
+// Очистка старых игр
 setInterval(() => {
   const oneHourAgo = Date.now() - 60 * 60 * 1000;
   for (const [gameId, game] of games.entries()) {
@@ -369,7 +363,6 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {
   console.log('\n=== 🚀 ПРОСТОЙ СЕРВЕР ЗАПУЩЕН ===');
   console.log(`📡 Порт: ${PORT}`);
-  console.log(`🌐 URL: http://localhost:${PORT}`);
-  console.log(`🔄 Поддержка выбора сторон: ВКЛЮЧЕНА`);
+  console.log(`📡 WebSocket: ws://localhost:${PORT}`);
   console.log('================================\n');
 });

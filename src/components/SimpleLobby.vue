@@ -105,6 +105,30 @@
             {{ (isHost && selectedSide === 'white') || (!isHost && selectedSide === 'black') ? '⚫' : '⚪' }}
           </span>
         </div>
+
+        <!-- Кнопка готовности для гостя -->
+        <div v-if="!isHost && opponent && !gameStarted" class="ready-section">
+        <button 
+            @click="toggleReady" 
+            class="ready-btn"
+            :class="{ ready: isReady }"
+        >
+            {{ isReady ? '✅ Готов' : '⏳ Готов?' }}
+        </button>
+        <p v-if="opponentReady" class="opponent-ready">
+            Соперник готов!
+        </p>
+        </div>
+
+        <!-- Индикатор готовности для хоста -->
+        <div v-if="isHost && opponent" class="ready-section">
+        <p v-if="opponentReady" class="opponent-ready">
+            Гость готов! Можно начинать игру.
+        </p>
+        <p v-else class="opponent-waiting">
+            Ожидание готовности гостя...
+        </p>
+        </div>
       </div>
 
       <button 
@@ -143,6 +167,25 @@ export default {
     const opponent = ref(null);
     const error = ref('');
     const selectedSide = ref('white');
+    const isReady = ref(false);
+    const opponentReady = ref(false);
+
+    const toggleReady = () => {
+        isReady.value = !isReady.value;
+        simpleMultiplayer.sendPlayerReady(gameId.value);
+        };
+
+        // В обработчики simpleMultiplayer добавьте:
+        simpleMultiplayer.onOpponentReady = () => {
+        opponentReady.value = true;
+        };
+
+        simpleMultiplayer.onBothReady = () => {
+        // Оба готовы, можно начинать (для хоста)
+        if (isHost.value) {
+            // Хост может начать игру
+        }
+    };
 
     onMounted(async () => {
       try {

@@ -138,32 +138,22 @@ export default {
       
       console.log('📊 Данные игры:', { isHost, side, hostName, guestName });
 
-      if (!hostName && !guestName) {
-        console.log('⚠️ Неполные данные игры, ждем подключения...');
-        return;
-      }
-
       if (isHost) {
         // Хост играет выбранной стороной
-        playerSide.value = side;
         playerColor.value = side === 'white' ? 1 : 2;
-        opponent.value = { name: guestName || 'Ожидание...' };
+        opponent.value = { name: guestName || 'Соперник' };
         console.log(`👑 Хост играет за ${side} (цвет ${playerColor.value})`);
       } else {
-        // Гость играет противоположной стороной
-        const guestSide = side === 'white' ? 'black' : 'white';
-        playerSide.value = guestSide;
-        playerColor.value = guestSide === 'white' ? 1 : 2;
+        // Гость получает сторону из gameData (она уже правильная)
+        playerColor.value = side === 'white' ? 1 : 2;
         opponent.value = { name: hostName || 'Хост' };
-        console.log(`👤 Гость играет за ${guestSide} (цвет ${playerColor.value})`);
+        console.log(`👤 Гость играет за ${side} (цвет ${playerColor.value})`);
       }
 
-      // Устанавливаем начального игрока (всегда белые начинают)
       currentPlayer.value = PLAYER_WHITE;
       
       console.log('✅ Игра инициализирована:', {
         playerColor: playerColor.value,
-        playerSide: playerSide.value,
         opponent: opponent.value?.name,
         currentPlayer: currentPlayer.value
       });
