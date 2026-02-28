@@ -126,26 +126,32 @@ export default {
 
     // Инициализация мультиплеера из gameData
     const initMultiplayer = () => {
-      if (props.multiplayerMode && props.gameData) {
-        // Определяем цвет игрока из стороны
-        if (props.gameData.side === 'white') {
-          playerColor.value = 1;
-        } else if (props.gameData.side === 'black') {
-          playerColor.value = 2;
-        }
-        
-        // Устанавливаем соперника
-        if (props.gameData.isHost) {
-          opponent.value = { name: 'Соперник' };
-        } else if (props.gameData.host) {
-          opponent.value = { name: props.gameData.host.name };
-        }
-        
-        console.log('🎨 Мультиплеер инициализирован:', {
-          playerColor: playerColor.value,
-          opponent: opponent.value
-        });
+      if (!props.multiplayerMode || !props.gameData) {
+        console.log('❌ Нет данных мультиплеера');
+        return;
       }
+      
+      console.log('🎮 Инициализация мультиплеера с данными:', props.gameData);
+      
+      const { isHost, side, hostName, guestName } = props.gameData;
+      
+      if (isHost) {
+        // Хост играет выбранной стороной
+        playerColor.value = side === 'white' ? 1 : 2;
+        opponent.value = { name: guestName || 'Соперник' };
+        console.log(`👑 Хост играет за ${side} (цвет ${playerColor.value})`);
+      } else {
+        // Гость играет противоположной стороной
+        const guestSide = side === 'white' ? 'black' : 'white';
+        playerColor.value = guestSide === 'white' ? 1 : 2;
+        opponent.value = { name: hostName || 'Хост' };
+        console.log(`👤 Гость играет за ${guestSide} (цвет ${playerColor.value})`);
+      }
+      
+      console.log('🎨 Итог:', {
+        playerColor: playerColor.value,
+        opponent: opponent.value?.name
+      });
     };
 
     // Настройка слушателей simpleMultiplayer
@@ -155,7 +161,6 @@ export default {
       simpleMultiplayer.onOpponentMove = (data) => {
         console.log('♟️ Ход соперника:', data);
         
-        // Применяем ход к доске
         const { move, board: newBoard, currentPlayer: newPlayer } = data;
         
         if (newBoard) {
@@ -182,7 +187,6 @@ export default {
     });
 
     onUnmounted(() => {
-      // Очищаем слушатели
       simpleMultiplayer.onOpponentMove = null;
       simpleMultiplayer.onOpponentLeft = null;
     });
@@ -190,13 +194,11 @@ export default {
     const handleMove = async (move) => {
       const { startRow, startCol, endRow, endCol } = move;
       
-      // В мультиплеере проверяем, чей ход
       if (props.multiplayerMode && !isMyTurn.value) {
         telegram.showAlert('Сейчас не ваш ход!');
         return;
       }
       
-      // Проверяем валидность хода
       const isValid = GameLogic.isValidMove(
         board.value, startRow, startCol, endRow, endCol, currentPlayer.value
       );
@@ -206,14 +208,12 @@ export default {
         return;
       }
       
-      // Выполняем ход
       await executeMove(startRow, startCol, endRow, endCol);
     };
 
     const executeMove = async (startRow, startCol, endRow, endCol) => {
       const isCapture = Math.abs(endRow - startRow) > 1;
       
-      // Сохраняем в историю
       moveHistory.value.push({
         board: JSON.parse(JSON.stringify(board.value)),
         currentPlayer: currentPlayer.value,
@@ -222,12 +222,10 @@ export default {
         currentCaptureChain: currentCaptureChain.value ? [...currentCaptureChain.value] : null
       });
       
-      // Выполняем ход
       board.value = GameLogic.makeMove(board.value, startRow, startCol, endRow, endCol);
       const promoted = GameLogic.checkForKing(board.value, endRow, endCol);
       lastMove.value = [[startRow, startCol], [endRow, endCol]];
       
-      // Проверяем окончание игры
       const status = GameLogic.getGameStatus(board.value);
       if (status) {
         gameOver.value = status;
@@ -240,7 +238,6 @@ export default {
         return;
       }
       
-      // Проверяем возможность продолжения боя
       if (isCapture) {
         const canContinue = GameLogic.canContinueCapture(
           board.value, 
@@ -263,7 +260,6 @@ export default {
         }
       }
       
-      // Меняем игрока
       justPromoted.value = false;
       currentCaptureChain.value = null;
       currentPlayer.value = currentPlayer.value === PLAYER_WHITE ? PLAYER_BLACK : PLAYER_WHITE;
@@ -272,7 +268,6 @@ export default {
         simpleMultiplayer.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
       }
       
-      // Проверяем наличие ходов у следующего игрока
       if (!GameLogic.hasMoves(board.value, currentPlayer.value)) {
         const winner = currentPlayer.value === PLAYER_WHITE ? PLAYER_BLACK : PLAYER_WHITE;
         gameOver.value = winner;
@@ -285,7 +280,6 @@ export default {
         return;
       }
       
-      // Сбрасываем подсказку после хода
       bestMove.value = null;
     };
 
@@ -313,50 +307,38 @@ export default {
     };
 
     const getHint = () => {
-      // Не показываем подсказки в мультиплеере
       if (props.multiplayerMode) {
         telegram.showAlert('Подсказки недоступны в мультиплеере');
         return;
       }
       
-      // Если уже получаем подсказку - игнорируем
-      if (isGettingHint.value) {
-        console.log('Уже получаем подсказку');
-        return;
-      }
+      if (isGettingHint.value) return;
       
-      // Проверяем, есть ли ходы
       if (!GameLogic.hasMoves(board.value, currentPlayer.value)) {
         telegram.showAlert('У вас нет доступных ходов');
         return;
       }
       
-      console.log('Запрашиваем подсказку...');
       isGettingHint.value = true;
       bestMove.value = null;
       
       setTimeout(() => {
         try {
-          console.log('Вычисляем подсказку...');
           const hint = LocalAI.getHint(board.value, currentPlayer.value);
           
           if (hint) {
-            console.log('Подсказка получена:', hint);
             bestMove.value = hint;
-            
             const [startRow, startCol, endRow, endCol] = hint;
             telegram.showNotification(
               `Подсказка: с (${startRow+1},${startCol+1}) на (${endRow+1},${endCol+1})`
             );
           } else {
-            console.log('Подсказка не найдена');
             telegram.showAlert('Не удалось найти хороший ход');
           }
         } catch (error) {
           console.error('Ошибка при получении подсказки:', error);
           telegram.showAlert('Ошибка при получении подсказки');
         } finally {
-          console.log('Скрываем overlay подсказки');
           isGettingHint.value = false;
         }
       }, 100);

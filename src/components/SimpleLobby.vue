@@ -224,7 +224,15 @@ export default {
     };
 
     const startGame = () => {
-      simpleMultiplayer.startGame();
+        simpleMultiplayer.startGame();
+        // Передаем ВСЮ информацию о игре
+        emit('start-game', { 
+            id: gameId.value, 
+            isHost: isHost.value,
+            side: selectedSide.value,  // сторона хоста
+            hostName: playerName.value,
+            guestName: opponent.value?.name
+        });
     };
 
     const copyCode = () => {

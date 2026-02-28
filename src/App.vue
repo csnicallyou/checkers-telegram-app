@@ -78,10 +78,10 @@ export default {
       currentGame.value = game;
     };
 
-    const startGame = (game) => {
-      console.log('Запуск игры:', game);
+    const startGame = (gameData) => {
+      console.log('Запуск игры с данными:', gameData);
       gameStarted.value = true;
-      currentGame.value = game;
+      currentGame.value = gameData; // Сохраняем ВСЕ данные
     };
 
     const backToMenu = () => {
