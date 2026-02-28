@@ -26,6 +26,20 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head><title>Checkers Server</title></head>
+    <body>
+      <h1>✅ Checkers Server Running</h1>
+      <p>Full server with ${activeGames?.size || 0} active games</p>
+      <p><a href="/api/health">Health check</a></p>
+    </body>
+    </html>
+  `);
+});
+
 // Хранилище активных игр (в продакшене использовать Redis)
 const activeGames = new Map();
 const connectedPlayers = new Map();
