@@ -8,7 +8,8 @@ class ColyseusMultiplayer {
         this.playerId = null;
         this.playerColor = null;
         this.opponent = null;
-        this.serverUrl = import.meta.env.VITE_SERVER_URL || 'ws://localhost:3001';
+        this.gameId = null;
+        this.serverUrl = import.meta.env.VITE_SERVER_URL || 'wss://checkers-server-0y7z.onrender.com';
         
         this.onGameUpdate = null;
         this.onPlayerJoined = null;
@@ -30,14 +31,24 @@ class ColyseusMultiplayer {
     }
 
     async createGame(playerName) {
-        if (!this.client) await this.connect();
+        console.log('🚀 Creating game with:', playerName);
+        
+        if (!this.client) {
+            console.log('🔄 No client, connecting...');
+            await this.connect();
+        }
         
         try {
             this.room = await this.client.create('game', {
                 name: playerName
             });
             
+            this.gameId = this.room.id;
+            this.playerId = this.room.sessionId;
+            
             console.log('✅ Game created:', this.room.id);
+            console.log('👤 Player ID:', this.playerId);
+            
             this.setupRoomListeners();
             
             return {
@@ -52,14 +63,24 @@ class ColyseusMultiplayer {
     }
 
     async joinGame(gameId, playerName) {
-        if (!this.client) await this.connect();
+        console.log('🚀 Joining game:', gameId, 'as', playerName);
+        
+        if (!this.client) {
+            console.log('🔄 No client, connecting...');
+            await this.connect();
+        }
         
         try {
             this.room = await this.client.joinById(gameId, {
                 name: playerName
             });
             
+            this.gameId = this.room.id;
+            this.playerId = this.room.sessionId;
+            
             console.log('✅ Joined game:', gameId);
+            console.log('👤 Player ID:', this.playerId);
+            
             this.setupRoomListeners();
             
             return {
@@ -74,69 +95,106 @@ class ColyseusMultiplayer {
     }
 
     setupRoomListeners() {
+        // Слушаем изменения состояния
         this.room.onStateChange((state) => {
-            console.log('State updated:', state);
+            console.log('📊 State updated:', state);
             
-            const players = Array.from(state.players.values());
-            this.playerId = this.room.sessionId;
+            // Определяем игроков
+            const players = [];
+            this.playerColor = null;
+            this.opponent = null;
             
-            players.forEach(p => {
-                if (p.id === this.playerId) {
-                    this.playerColor = p.color;
+            state.players.forEach((player, id) => {
+                players.push({
+                    id: id,
+                    name: player.name,
+                    color: player.color
+                });
+                
+                if (id === this.playerId) {
+                    this.playerColor = player.color;
                 } else {
-                    this.opponent = p;
+                    this.opponent = {
+                        id: id,
+                        name: player.name,
+                        color: player.color
+                    };
                 }
             });
             
+            console.log('🎨 My color:', this.playerColor);
+            console.log('👤 Opponent:', this.opponent);
+            
             if (this.onGameUpdate) {
+                // Преобразуем одномерный массив в двумерный для доски
+                const board2D = [];
+                for (let i = 0; i < 8; i++) {
+                    board2D.push(state.board.slice(i * 8, (i + 1) * 8));
+                }
+                
                 this.onGameUpdate({
-                    board: state.board,
+                    board: board2D,
                     currentPlayer: state.currentPlayer,
                     players: players,
-                    lastMove: state.lastMove
+                    lastMove: state.lastMoveRow1 !== 0 ? {
+                        startRow: state.lastMoveRow1,
+                        startCol: state.lastMoveCol1,
+                        endRow: state.lastMoveRow2,
+                        endCol: state.lastMoveCol2
+                    } : null
                 });
             }
         });
 
+        // Слушаем события
         this.room.onMessage('player_joined', (data) => {
-            console.log('Player joined:', data);
-            if (this.onPlayerJoined) this.onPlayerJoined(data);
+            console.log('👋 Player joined:', data);
+            if (this.onPlayerJoined) {
+                this.onPlayerJoined(data);
+            }
         });
 
-        this.room.onMessage('game_ready', (data) => {
-            console.log('Game ready:', data);
-            if (this.onGameStart) this.onGameStart();
+        this.room.onMessage('game_ready', () => {
+            console.log('🎮 Game ready!');
+            if (this.onGameStart) {
+                this.onGameStart();
+            }
         });
 
         this.room.onMessage('move_made', (data) => {
-            console.log('Move made:', data);
-            if (this.onGameUpdate) {
-                this.onGameUpdate({
-                    board: data.board,
-                    currentPlayer: data.currentPlayer,
-                    lastMove: {
-                        startRow: data.startRow,
-                        startCol: data.startCol,
-                        endRow: data.endRow,
-                        endCol: data.endCol
-                    }
-                });
+            console.log('♟️ Move made:', data);
+            // Обновление придет через onStateChange
+        });
+
+        this.room.onMessage('game_started', () => {
+            console.log('🎮 Game started!');
+            if (this.onGameStart) {
+                this.onGameStart();
             }
         });
 
         this.room.onMessage('player_left', (data) => {
-            console.log('Player left:', data);
-            if (this.onPlayerLeft) this.onPlayerLeft(data);
+            console.log('👋 Player left:', data);
+            if (this.onPlayerLeft) {
+                this.onPlayerLeft(data);
+            }
         });
 
         this.room.onLeave((code) => {
-            console.log('Left room:', code);
+            console.log('👋 Left room:', code);
             this.room = null;
+            this.gameId = null;
+            this.opponent = null;
+        });
+
+        this.room.onError((code, message) => {
+            console.error('❌ Room error:', code, message);
         });
     }
 
     sendMove(startRow, startCol, endRow, endCol) {
         if (this.room) {
+            console.log('♟️ Sending move:', { startRow, startCol, endRow, endCol });
             this.room.send('move', {
                 startRow, startCol, endRow, endCol
             });
@@ -145,6 +203,7 @@ class ColyseusMultiplayer {
 
     startGame() {
         if (this.room) {
+            console.log('🎮 Starting game');
             this.room.send('start_game');
         }
     }
@@ -153,6 +212,8 @@ class ColyseusMultiplayer {
         if (this.room) {
             this.room.leave();
             this.room = null;
+            this.gameId = null;
+            this.opponent = null;
         }
     }
 }
