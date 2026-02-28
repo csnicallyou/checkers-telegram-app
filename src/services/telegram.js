@@ -1,3 +1,4 @@
+console.log('📱 Telegram.js загружен');
 class TelegramService {
   constructor() {
     this.webApp = null;

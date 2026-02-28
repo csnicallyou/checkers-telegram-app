@@ -80,6 +80,7 @@
 </template>
 
 <script>
+console.log('🚀 ColyseusLobby компонент начал загрузку');
 import { ref, onMounted, onUnmounted } from 'vue';
 import { colyseusMultiplayer } from '../services/colyseusMultiplayer';
 import { telegram } from '../telegram';
@@ -88,6 +89,7 @@ export default {
   name: 'ColyseusLobby',
   emits: ['back', 'game-created', 'game-joined', 'start-game'],
   setup(props, { emit }) {
+    console.log('🎮 ColyseusLobby setup выполняется');    
     const playerName = ref('');
     const gameIdInput = ref('');
     const currentGame = ref(null);

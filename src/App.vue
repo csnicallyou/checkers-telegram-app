@@ -7,7 +7,7 @@
           @select-mode="handleModeSelect"
         />
         
-        <MultiplayerLobby 
+        <ColyseusLobby  
           v-else-if="gameMode === 'multiplayer' && !gameStarted"
           @back-to-mode-selection="backToModeSelection"
           @game-created="handleGameCreated"
