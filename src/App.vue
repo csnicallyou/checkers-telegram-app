@@ -12,7 +12,7 @@
           @back-to-mode-selection="backToModeSelection"
           @game-created="handleGameCreated"
           @game-joined="handleGameJoined"
-          @start-game="startGame"   <!-- ДОЛЖНО БЫТЬ @start-game, НЕ @game-start -->
+          @start-game="startGame"   
         />
         
         <GameView
