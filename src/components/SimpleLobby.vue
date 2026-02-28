@@ -199,7 +199,7 @@ export default {
         };
 
         simpleGame.onGameStart = (data) => {
-            console.log('🎮 Игра начинается:', data);
+            console.log('🎮 ПОЛУЧЕНО СОБЫТИЕ game_start:', data);
             emit('game-start', {
                 myColor: data.myColor,
                 opponentColor: data.opponentColor,
@@ -257,7 +257,8 @@ export default {
     };
 
     const hostStartGame = () => {
-      simpleGame.hostStart();
+        console.log('🎮 Хост нажимает кнопку "Начать игру"');
+        simpleGame.hostStart();
     };
 
     const copyCode = () => {

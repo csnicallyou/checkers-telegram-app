@@ -137,6 +137,7 @@ class SimpleGame {
     }
 
     hostStart() {
+        console.log('🎮 Хост начинает игру:', this.gameId);
         this.ws.send(JSON.stringify({ 
             type: 'host_start', 
             gameId: this.gameId 

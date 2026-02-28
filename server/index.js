@@ -114,11 +114,22 @@ wss.on('connection', (ws) => {
       }
       
       // ХОСТ НАЧИНАЕТ ИГРУ
+      // ХОСТ НАЧИНАЕТ ИГРУ
       else if (data.type === 'host_start') {
         const game = games[data.gameId];
-        if (!game) return;
+        if (!game) {
+          console.log(`❌ Игра ${data.gameId} не найдена`);
+          return;
+        }
         
-        if (!game.guest || !game.guestReady) {
+        if (!game.guest) {
+          console.log(`❌ В игре ${data.gameId} нет гостя`);
+          ws.send(JSON.stringify({ type: 'error', message: 'Нет гостя' }));
+          return;
+        }
+        
+        if (!game.guestReady) {
+          console.log(`❌ Гость в игре ${data.gameId} не готов`);
           ws.send(JSON.stringify({ type: 'error', message: 'Гость не готов' }));
           return;
         }
@@ -128,12 +139,15 @@ wss.on('connection', (ws) => {
         console.log(`   Гость: ${game.guestName} (${game.hostSide === 'white' ? 'black' : 'white'})`);
         
         // Отправляем хосту
-        game.host.send(JSON.stringify({
-          type: 'game_start',
-          myColor: game.hostSide === 'white' ? 1 : 2,
-          opponentColor: game.hostSide === 'white' ? 2 : 1,
-          opponentName: game.guestName
-        }));
+        if (game.host) {
+          game.host.send(JSON.stringify({
+            type: 'game_start',
+            myColor: game.hostSide === 'white' ? 1 : 2,
+            opponentColor: game.hostSide === 'white' ? 2 : 1,
+            opponentName: game.guestName
+          }));
+          console.log(`✅ Уведомление отправлено хосту ${game.hostName}`);
+        }
         
         // Отправляем гостю
         if (game.guest) {
@@ -143,6 +157,7 @@ wss.on('connection', (ws) => {
             opponentColor: game.hostSide === 'white' ? 1 : 2,
             opponentName: game.hostName
           }));
+          console.log(`✅ Уведомление отправлено гостю ${game.guestName}`);
         }
       }
       
