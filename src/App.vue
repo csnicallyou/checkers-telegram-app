@@ -7,12 +7,10 @@
           @select-mode="handleModeSelect"
         />
         
-        <SimpleLobby  
+        <Lobby  
           v-else-if="gameMode === 'multiplayer' && !gameStarted"
           @back-to-mode-selection="backToModeSelection"
-          @game-created="handleGameCreated"
-          @game-joined="handleGameJoined"
-          @start-game="startGame"   
+          @start="startGame"
         />
         
         <GameView
@@ -35,14 +33,13 @@
 
 <script>
 import { ref, defineAsyncComponent } from 'vue';
-import { simpleGame } from './services/simpleGame'; 
 
 // Ленивая загрузка компонентов
 const ModeSelection = defineAsyncComponent(() => 
   import('./components/ModeSelection.vue')
 );
-const SimpleLobby = defineAsyncComponent(() => 
-  import('./components/SimpleLobby.vue')
+const Lobby = defineAsyncComponent(() => 
+  import('./components/Lobby.vue')
 );
 const GameView = defineAsyncComponent(() => 
   import('./views/GameView.vue')
@@ -52,7 +49,7 @@ export default {
   name: 'App',
   components: {
     ModeSelection,
-    SimpleLobby,
+    Lobby,
     GameView
   },
   setup() {
@@ -69,26 +66,10 @@ export default {
       }
     };
 
-    const handleGameCreated = (game) => {
-      console.log('Игра создана:', game);
-      currentGame.value = game;
-    };
-
-    const handleGameJoined = (game) => {
-      console.log('Присоединились к игре:', game);
-      currentGame.value = game;
-    };
-
     const startGame = (gameData) => {
-        console.log('🎮 App.vue получил данные игры:', gameData);
-        console.log('📌 simpleGame.gameId:', simpleGame?.gameId);
-        
-        gameStarted.value = true;
-        // Сохраняем gameId и данные
-        currentGame.value = {
-            ...gameData,
-            gameId: simpleGame?.gameId || gameData.gameId
-        };
+      console.log('🎮 App.vue получил данные игры:', gameData);
+      gameStarted.value = true;
+      currentGame.value = gameData;
     };
 
     const backToMenu = () => {
@@ -110,8 +91,6 @@ export default {
       gameStarted,
       currentGame,
       handleModeSelect,
-      handleGameCreated,
-      handleGameJoined,
       startGame,
       backToMenu,
       backToModeSelection
