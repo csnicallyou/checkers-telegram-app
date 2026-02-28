@@ -20,6 +20,17 @@ class TelegramMultiplayer {
         this.onError = null;
     }
 
+    async createGame(side) {
+    if (!this.connected) {
+        await this.connect();
+    }
+    this.send('create_game', { side });
+    }
+
+    async sendReady(gameId, ready) {
+        this.send('player_ready', { gameId, ready });
+    }
+
     connect() {
         return new Promise((resolve, reject) => {
             try {
@@ -69,6 +80,15 @@ class TelegramMultiplayer {
                 this.playerRole = 'host';
                 this.playerColor = data.color;
                 if (this.onGameCreated) this.onGameCreated(data);
+                break;
+
+            case 'player_joined':
+                this.opponent = { name: data.guestName };
+                if (this.onPlayerJoined) this.onPlayerJoined(data);
+                break;
+        
+            case 'player_ready':
+                if (this.onPlayerReady) this.onPlayerReady(data);
                 break;
                 
             case 'game_joined':
@@ -134,6 +154,8 @@ class TelegramMultiplayer {
         this.playerColor = null;
         this.opponent = null;
     }
+
+    
 
     send(type, data) {
         if (this.ws && this.connected) {

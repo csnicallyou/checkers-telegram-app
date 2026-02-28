@@ -58,6 +58,9 @@ wss.on('connection', (ws) => {
         case 'leave_game':
           handleLeaveGame(clientId);
           break;
+        case 'player_ready':
+          handlePlayerReady(clientId, data.gameId, data.ready);
+          break;
       }
     } catch (error) {
       console.error('Error:', error);
@@ -140,6 +143,23 @@ function handleJoinGame(clientId, gameId) {
   }));
   
   console.log(`✅ Guest joined: ${gameId}`);
+}
+
+function handlePlayerReady(clientId, gameId, ready) {
+    const game = games.get(gameId);
+    if (!game) return;
+    
+    const isHost = game.host.id === clientId;
+    const otherId = isHost ? game.guest?.id : game.host.id;
+    const otherClient = clients.get(otherId);
+    
+    if (otherClient) {
+        otherClient.ws.send(JSON.stringify({
+            type: 'player_ready',
+            role: isHost ? 'host' : 'guest',
+            ready
+        }));
+    }
 }
 
 function handleStartGame(clientId, gameId) {

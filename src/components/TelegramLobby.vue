@@ -14,8 +14,33 @@
     <div v-else-if="!gameId" class="menu">
       <div class="section">
         <h3>Создать новую игру</h3>
-        <p class="info">Ваш Telegram ник: <strong>{{ telegramName }}</strong></p>
-        <button @click="createGame" class="btn create">Создать игру</button>
+        <p class="info">Ваш Telegram: <strong>{{ telegramName }}</strong></p>
+        
+        <!-- Выбор стороны для хоста -->
+        <div class="side-selection">
+          <h4>Выберите свою сторону:</h4>
+          <div class="side-buttons">
+            <button 
+              @click="selectedSide = 'white'" 
+              class="side-btn white"
+              :class="{ selected: selectedSide === 'white' }"
+            >
+              ⚪ Белые
+            </button>
+            <button 
+              @click="selectedSide = 'black'" 
+              class="side-btn black"
+              :class="{ selected: selectedSide === 'black' }"
+            >
+              ⚫ Черные
+            </button>
+          </div>
+          <p class="hint">Гость получит противоположную сторону</p>
+        </div>
+
+        <button @click="createGame" class="btn create" :disabled="!selectedSide">
+          Создать игру
+        </button>
       </div>
 
       <div class="divider">или</div>
@@ -27,6 +52,7 @@
           placeholder="Введите код игры" 
           class="input"
           maxlength="6"
+          @keyup.enter="joinGame"
         >
         <button @click="joinGame" class="btn join" :disabled="!gameCode">
           Присоединиться
@@ -44,41 +70,71 @@
       </div>
 
       <div class="players">
-        <div class="player" :class="{ 'host': playerRole === 'host', 'guest': playerRole === 'guest' }">
+        <!-- Хост -->
+        <div class="player host">
           <div class="player-name">
             {{ telegramName }}
-            <span class="badge">Вы</span>
+            <span class="badge">Хост</span>
           </div>
-          <div class="player-side" :class="{ 'white': playerColor === 1, 'black': playerColor === 2 }">
-            {{ playerColor === 1 ? '⚪ Белые' : '⚫ Черные' }}
+          <div class="player-side" :class="{ 'white-side': hostSide === 'white', 'black-side': hostSide === 'black' }">
+            {{ hostSide === 'white' ? '⚪ Белые' : '⚫ Черные' }}
+          </div>
+          <div v-if="playerRole === 'host'" class="ready-indicator">
+            <span v-if="hostReady" class="ready-badge">✅ Готов</span>
           </div>
         </div>
         
         <div class="vs">VS</div>
         
-        <div class="player" :class="{ 'host': playerRole === 'guest', 'guest': playerRole === 'host' }">
+        <!-- Гость -->
+        <div class="player guest">
           <div class="player-name">
-            {{ opponent?.name || 'Ожидание...' }}
+            {{ guestName || 'Ожидание...' }}
+            <span v-if="guestName" class="badge">Гость</span>
           </div>
-          <div v-if="opponent" class="player-side" :class="{ 'white': opponentColor === 1, 'black': opponentColor === 2 }">
-            {{ opponentColor === 1 ? '⚪ Белые' : '⚫ Черные' }}
+          <div v-if="guestSide" class="player-side" :class="{ 'white-side': guestSide === 'white', 'black-side': guestSide === 'black' }">
+            {{ guestSide === 'white' ? '⚪ Белые' : '⚫ Черные' }}
+          </div>
+          <div v-if="playerRole === 'guest' && guestName" class="ready-section">
+            <button 
+              @click="toggleReady" 
+              class="ready-btn"
+              :class="{ ready: guestReady }"
+            >
+              {{ guestReady ? '✅ Готов' : '⏳ Готов?' }}
+            </button>
+          </div>
+          <div v-else-if="guestReady" class="ready-indicator">
+            <span class="ready-badge">✅ Готов</span>
           </div>
         </div>
       </div>
 
-      <div v-if="playerRole === 'host' && opponent" class="start-section">
-        <button @click="startGame" class="btn start">
-          Начать игру
+      <!-- Для хоста: кнопка начала игры -->
+      <div v-if="playerRole === 'host' && guestName" class="start-section">
+        <div v-if="!guestReady" class="guest-waiting">
+          ⏳ Ожидание готовности гостя...
+        </div>
+        <button 
+          v-else
+          @click="startGame" 
+          class="btn start"
+        >
+          🎮 Начать игру
         </button>
       </div>
 
-      <div v-else-if="playerRole === 'host' && !opponent" class="waiting">
+      <!-- Для хоста: ожидание гостя -->
+      <div v-else-if="playerRole === 'host' && !guestName" class="waiting">
         <p>Ожидание второго игрока...</p>
         <p class="hint">Отправьте код другу: <strong>{{ gameId }}</strong></p>
       </div>
 
-      <div v-else-if="playerRole === 'guest' && opponent" class="waiting">
-        <p>Ожидание начала игры...</p>
+      <!-- Для гостя: ожидание начала -->
+      <div v-else-if="playerRole === 'guest' && guestName" class="waiting">
+        <p v-if="!hostReady">⏳ Ожидание готовности хоста...</p>
+        <p v-else-if="guestReady && !gameStarted">✅ Вы готовы. Ожидание начала игры...</p>
+        <p v-else>Ожидание начала игры...</p>
       </div>
     </div>
   </div>
@@ -96,10 +152,14 @@ export default {
     const gameCode = ref('');
     const gameId = ref(null);
     const connected = ref(false);
-    const playerRole = ref(null);
-    const playerColor = ref(null);
-    const opponent = ref(null);
-    const opponentColor = ref(null);
+    const playerRole = ref(null); // 'host' или 'guest'
+    const selectedSide = ref('white'); // для хоста
+    const hostSide = ref(null);
+    const guestSide = ref(null);
+    const guestName = ref(null);
+    const hostReady = ref(false);
+    const guestReady = ref(false);
+    const gameStarted = ref(false);
     const error = ref('');
 
     const telegramName = computed(() => {
@@ -118,7 +178,8 @@ export default {
           console.log('Игра создана:', data);
           gameId.value = data.gameId;
           playerRole.value = 'host';
-          playerColor.value = data.color;
+          hostSide.value = data.hostSide;
+          guestSide.value = data.guestSide;
           emit('game-created', { id: data.gameId });
         };
         
@@ -126,20 +187,42 @@ export default {
           console.log('Игра присоединена:', data);
           gameId.value = data.gameId;
           playerRole.value = 'guest';
-          playerColor.value = data.color;
-          opponent.value = { name: data.hostName };
-          opponentColor.value = data.hostColor;
+          hostSide.value = data.hostSide;
+          guestSide.value = data.guestSide;
+          guestName.value = telegramName.value;
           emit('game-joined', { id: data.gameId });
+        };
+        
+        telegramMultiplayer.onPlayerJoined = (data) => {
+          console.log('Игрок присоединился:', data);
+          guestName.value = data.guestName;
+          guestSide.value = data.guestSide;
+        };
+        
+        telegramMultiplayer.onPlayerReady = (data) => {
+          console.log('Игрок готов:', data);
+          if (data.role === 'host') {
+            hostReady.value = true;
+          } else {
+            guestReady.value = true;
+          }
         };
         
         telegramMultiplayer.onGameStarted = (data) => {
           console.log('Игра началась:', data);
+          gameStarted.value = true;
           emit('start-game', {
             id: gameId.value,
             playerRole: playerRole.value,
-            playerColor: playerColor.value,
-            opponent: opponent.value,
-            opponentColor: opponentColor.value
+            playerColor: playerRole.value === 'host' ? 
+              (hostSide.value === 'white' ? 1 : 2) : 
+              (guestSide.value === 'white' ? 1 : 2),
+            opponent: {
+              name: playerRole.value === 'host' ? guestName.value : telegramName.value,
+              color: playerRole.value === 'host' ? 
+                (guestSide.value === 'white' ? 1 : 2) : 
+                (hostSide.value === 'white' ? 1 : 2)
+            }
           });
         };
         
@@ -157,7 +240,7 @@ export default {
     });
 
     const createGame = () => {
-      telegramMultiplayer.createGame();
+      telegramMultiplayer.createGame(selectedSide.value);
     };
 
     const joinGame = () => {
@@ -165,8 +248,14 @@ export default {
       telegramMultiplayer.joinGame(gameCode.value);
     };
 
+    const toggleReady = () => {
+      const newReadyState = !guestReady.value;
+      guestReady.value = newReadyState;
+      telegramMultiplayer.sendReady(gameId.value, newReadyState);
+    };
+
     const startGame = () => {
-      telegramMultiplayer.startGame();
+      telegramMultiplayer.startGame(gameId.value);
     };
 
     const copyCode = () => {
@@ -185,13 +274,18 @@ export default {
       gameId,
       connected,
       playerRole,
-      playerColor,
-      opponent,
-      opponentColor,
+      selectedSide,
+      hostSide,
+      guestSide,
+      guestName,
+      hostReady,
+      guestReady,
+      gameStarted,
       error,
       telegramName,
       createGame,
       joinGame,
+      toggleReady,
       startGame,
       copyCode,
       goBack
@@ -256,6 +350,53 @@ export default {
 .info {
   margin-bottom: 15px;
   color: #666;
+  font-weight: bold;
+}
+
+.side-selection {
+  margin: 20px 0;
+  padding: 15px;
+  background: #f0f0f0;
+  border-radius: 8px;
+}
+
+.side-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 15px 0;
+}
+
+.side-btn {
+  padding: 10px 20px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
+  flex: 1;
+  max-width: 120px;
+}
+
+.side-btn.white {
+  background: white;
+  color: #333;
+}
+
+.side-btn.black {
+  background: #333;
+  color: white;
+}
+
+.side-btn.selected {
+  border-color: #4CAF50;
+  transform: scale(1.05);
+}
+
+.hint {
+  font-size: 14px;
+  color: #666;
+  margin-top: 10px;
 }
 
 .input {
@@ -277,11 +418,17 @@ export default {
   font-weight: bold;
   color: white;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
 .btn.create { background: #4CAF50; }
 .btn.join { background: #2196F3; }
 .btn.start { background: #FF9800; }
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
 
 .btn:disabled {
   opacity: 0.5;
@@ -324,6 +471,10 @@ export default {
   padding: 15px;
   border-radius: 8px;
   text-align: center;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .player.host { background: #e3f2fd; }
@@ -346,10 +497,53 @@ export default {
 
 .player-side {
   font-size: 14px;
+  font-weight: bold;
+  padding: 4px;
+  border-radius: 4px;
+  margin: 5px 0;
 }
 
-.player-side.white { color: #2196F3; }
-.player-side.black { color: #f44336; }
+.player-side.white-side { 
+  background: #2196F3; 
+  color: white;
+}
+
+.player-side.black-side { 
+  background: #f44336; 
+  color: white;
+}
+
+.ready-section {
+  margin-top: 10px;
+}
+
+.ready-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  background: #ff9800;
+  color: white;
+  transition: all 0.2s;
+}
+
+.ready-btn.ready {
+  background: #4CAF50;
+}
+
+.ready-indicator {
+  margin-top: 10px;
+}
+
+.ready-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  background: #4CAF50;
+  color: white;
+  border-radius: 4px;
+  font-size: 12px;
+}
 
 .vs {
   font-size: 20px;
@@ -362,17 +556,20 @@ export default {
   margin: 20px 0;
 }
 
+.guest-waiting {
+  padding: 10px;
+  background: #fff3cd;
+  border-radius: 8px;
+  color: #856404;
+  margin-bottom: 10px;
+}
+
 .waiting {
   text-align: center;
   padding: 20px;
   background: #fff3cd;
   border-radius: 8px;
   color: #856404;
-}
-
-.hint {
-  font-size: 14px;
-  margin-top: 10px;
 }
 
 .error {
