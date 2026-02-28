@@ -79,11 +79,16 @@ export default {
     };
 
     const startGame = (gameData) => {
-      console.log('🎮 App.vue ПОЛУЧИЛ данные игры:', gameData);
-      console.log('🔄 Переключение на GameView');
-      gameStarted.value = true;
-      currentGame.value = gameData;
-      console.log('✅ currentGame установлен:', currentGame.value);
+        console.log('🎮 App.vue получил данные игры:', gameData);
+        // Проверяем, что у simpleGame есть gameId
+        console.log('📌 simpleGame.gameId:', simpleGame.gameId);
+        
+        gameStarted.value = true;
+        // Сохраняем gameId и данные
+        currentGame.value = {
+            ...gameData,
+            gameId: simpleGame.gameId || gameData.gameId
+        };
     };
 
     const backToMenu = () => {

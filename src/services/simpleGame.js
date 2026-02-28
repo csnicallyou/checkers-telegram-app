@@ -11,7 +11,8 @@ class SimpleGame {
         this.connected = false;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
-        this.pendingMessages = []; // Очередь сообщений, которые не удалось отправить
+        this.pendingMessages = [];
+        this.shouldReconnect = true; // Флаг для контроля переподключения
         
         this.serverUrl = import.meta.env.VITE_SERVER_URL || 'wss://checkers-server-0y7z.onrender.com';
         
@@ -35,6 +36,7 @@ class SimpleGame {
                     console.log('✅ WebSocket connected');
                     this.connected = true;
                     this.reconnectAttempts = 0;
+                    this.shouldReconnect = true;
                     
                     // Если у нас был gameId, отправляем запрос на восстановление сессии
                     if (this.gameId) {
@@ -60,10 +62,21 @@ class SimpleGame {
                     reject(error);
                 };
                 
-                this.ws.onclose = () => {
-                    console.log('🔴 WebSocket closed');
+                this.ws.onclose = (event) => {
+                    console.log('🔴 WebSocket closed. Code:', event.code, 'Reason:', event.reason);
+                    console.log('   Было ли соединение открыто:', this.connected);
+                    console.log('   Текущий gameId:', this.gameId);
                     this.connected = false;
-                    this.attemptReconnect();
+                    
+                    // Пытаемся переподключиться только если нужно
+                    if (this.shouldReconnect && this.gameId) {
+                        console.log('🔄 Попытка переподключения через 2 секунды...');
+                        setTimeout(() => {
+                            if (!this.connected) {
+                                this.connect().catch(() => {});
+                            }
+                        }, 2000);
+                    }
                 };
                 
                 this.ws.onmessage = (e) => {
@@ -157,26 +170,9 @@ class SimpleGame {
         });
     }
 
-    attemptReconnect() {
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            console.log('❌ Превышено максимальное количество попыток переподключения');
-            if (this.onError) this.onError('Потеряно соединение с сервером');
-            return;
-        }
-        
-        this.reconnectAttempts++;
-        console.log(`🔄 Попытка переподключения ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
-        
-        setTimeout(() => {
-            if (!this.connected) {
-                this.connect().catch(() => {});
-            }
-        }, 3000 * this.reconnectAttempts);
-    }
-
     checkConnection() {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            console.warn('⚠️ WebSocket не в открытом состоянии, сообщение будет отправлено после переподключения');
+            console.warn('⚠️ WebSocket не в открытом состоянии, readyState:', this.ws?.readyState);
             return false;
         }
         return true;
@@ -186,9 +182,13 @@ class SimpleGame {
         const message = JSON.stringify({ type, ...data });
         
         if (!this.checkConnection()) {
-            // Сохраняем сообщение для отправки после переподключения
-            console.log('📥 Сообщение добавлено в очередь:', { type, ...data });
+            console.log('📥 Сообщение добавлено в очередь (не удалось отправить):', { type, ...data });
             this.pendingMessages.push({ type, ...data });
+            
+            // Пытаемся переподключиться, если нужно
+            if (!this.connected && this.gameId) {
+                this.connect().catch(() => {});
+            }
             return;
         }
         
@@ -239,6 +239,8 @@ class SimpleGame {
     }
 
     disconnect() {
+        console.log('👋 Отключение от сервера');
+        this.shouldReconnect = false; // Отключаем автоматическое переподключение
         if (this.ws) {
             this.ws.close();
             this.ws = null;

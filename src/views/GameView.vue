@@ -108,6 +108,7 @@ export default {
     const currentCaptureChain = ref(null);
     const opponent = ref(null);
     const opponentDisconnected = ref(false);
+    const gameId = ref(null);
     
     // Данные мультиплеера
     const myColor = ref(1); // 1 - белые, 2 - черные
@@ -128,31 +129,34 @@ export default {
 
     // Инициализация игры из пропсов
     const initGame = () => {
-      console.log('🎮 GameView initGame вызван');
-      console.log('📦 props.gameData:', props.gameData);
-      
-      if (!props.multiplayerMode || !props.gameData) {
-        console.log('❌ Нет данных мультиплеера');
-        return;
-      }
+        console.log('🎮 GameView initGame вызван');
+        console.log('📦 props.gameData:', props.gameData);
+        
+        if (!props.multiplayerMode || !props.gameData) {
+            console.log('❌ Нет данных мультиплеера');
+            return;
+        }
 
-      const { myColor: playerColor, opponentColor: oppColor, opponentName } = props.gameData;
-      console.log('📊 Данные из gameData:', { playerColor, oppColor, opponentName });
-      
-      if (playerColor === undefined || oppColor === undefined) {
-        console.log('❌ Нет данных о цветах');
-        return;
-      }
-      
-      myColor.value = playerColor;
-      opponentColor.value = oppColor;
-      opponent.value = { name: opponentName || 'Соперник' };
-      
-      console.log('✅ Игра инициализирована:', {
-        myColor: myColor.value,
-        opponentColor: opponentColor.value,
-        opponent: opponent.value
-      });
+        const { myColor, opponentColor, opponentName, gameId: id } = props.gameData;
+        console.log('📊 Данные из gameData:', { myColor, opponentColor, opponentName, gameId: id });
+        
+        if (myColor === undefined || opponentColor === undefined) {
+            console.log('❌ Нет данных о цветах');
+            return;
+        }
+        
+        gameId.value = id; // Сохраняем gameId
+        
+        myColor.value = myColor;
+        opponentColor.value = opponentColor;
+        opponent.value = { name: opponentName || 'Соперник' };
+        
+        console.log('✅ Игра инициализирована:', {
+            myColor: myColor.value,
+            opponentColor: opponentColor.value,
+            opponent: opponent.value,
+            gameId: gameId.value
+        });
     };
 
     // Настройка слушателей simpleGame
@@ -194,10 +198,21 @@ export default {
       };
     };
 
+    // В onMounted добавьте:
     onMounted(() => {
       telegram.init();
       initGame();
       setupMultiplayerListeners();
+      
+      // Проверяем состояние WebSocket
+      if (simpleGame.connected) {
+        console.log('✅ WebSocket уже подключен, gameId:', simpleGame.gameId);
+      } else {
+        console.log('🔄 WebSocket не подключен, переподключаемся...');
+        simpleGame.connect().then(() => {
+          console.log('✅ WebSocket переподключен');
+        });
+      }
       
       console.log('Игра запущена в режиме:', props.mode);
     });
