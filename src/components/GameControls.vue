@@ -41,6 +41,7 @@
         В меню
       </button>
       
+      <!-- Чекбокс для всех в одиночной игре -->
       <label v-if="!multiplayerMode" class="hint-toggle">
         <input 
           type="checkbox" 
@@ -50,12 +51,30 @@
         >
         Подсвечивать подсказку
       </label>
+      
+      <!-- Чекбокс только для админа в мультиплеере -->
+      <label v-if="multiplayerMode && isAdmin" class="hint-toggle admin-toggle">
+        <input 
+          type="checkbox" 
+          :checked="showHints"
+          @change="$emit('update:showHints', $event.target.checked)"
+          :disabled="isGettingHint"
+        >
+        👑 Подсвечивать подсказку (только для вас)
+      </label>
     </div>
     
     <div v-if="multiplayerMode && opponent" class="opponent-info">
       <p>Соперник: {{ opponent.name }}</p>
     </div>
     
+    <!-- Отображение лучшего хода для админа в мультиплеере -->
+    <div v-if="showHints && bestMove && multiplayerMode && isAdmin" class="game-status admin-hint">
+      <p>Лучший ход: с ({{ bestMove[0]+1 }},{{ bestMove[1]+1 }}) на ({{ bestMove[2]+1 }},{{ bestMove[3]+1 }})</p>
+      <p class="hint-note">(видите только вы)</p>
+    </div>
+    
+    <!-- Отображение лучшего хода в одиночной игре -->
     <div v-if="showHints && bestMove && !multiplayerMode" class="game-status">
       <p>Лучший ход: с ({{ bestMove[0]+1 }},{{ bestMove[1]+1 }}) на ({{ bestMove[2]+1 }},{{ bestMove[3]+1 }})</p>
     </div>
@@ -289,6 +308,28 @@ export default {
   cursor: pointer;
   width: 18px;
   height: 18px;
+}
+
+/* Стили для админского чекбокса */
+.admin-toggle {
+  border-color: #9C27B0 !important;
+  background: #f3e5f5 !important;
+}
+
+.admin-toggle:hover {
+  background: #e1bee7 !important;
+}
+
+.admin-hint {
+  background: #f3e5f5 !important;
+  border-color: #9C27B0 !important;
+  color: #6a1b9a !important;
+}
+
+.hint-note {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-top: 4px;
 }
 
 .game-status, .opponent-info {
