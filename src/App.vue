@@ -7,10 +7,12 @@
           @select-mode="handleModeSelect"
         />
         
-        <Lobby  
+        <SimpleLobby  
           v-else-if="gameMode === 'multiplayer' && !gameStarted"
           @back-to-mode-selection="backToModeSelection"
-          @start="startGame"
+          @game-created="handleGameCreated"
+          @game-joined="handleGameJoined"
+          @start-game="startGame"
         />
         
         <GameView
@@ -33,13 +35,13 @@
 
 <script>
 import { ref, defineAsyncComponent } from 'vue';
+import { simpleGame } from './services/simpleGame';
 
-// Ленивая загрузка компонентов
 const ModeSelection = defineAsyncComponent(() => 
   import('./components/ModeSelection.vue')
 );
-const Lobby = defineAsyncComponent(() => 
-  import('./components/Lobby.vue')
+const SimpleLobby = defineAsyncComponent(() => 
+  import('./components/SimpleLobby.vue')
 );
 const GameView = defineAsyncComponent(() => 
   import('./views/GameView.vue')
@@ -49,7 +51,7 @@ export default {
   name: 'App',
   components: {
     ModeSelection,
-    Lobby,
+    SimpleLobby,
     GameView
   },
   setup() {
@@ -64,6 +66,16 @@ export default {
       if (mode === 'local') {
         gameStarted.value = true;
       }
+    };
+
+    const handleGameCreated = (game) => {
+      console.log('Игра создана:', game);
+      currentGame.value = game;
+    };
+
+    const handleGameJoined = (game) => {
+      console.log('Присоединились к игре:', game);
+      currentGame.value = game;
     };
 
     const startGame = (gameData) => {
@@ -91,6 +103,8 @@ export default {
       gameStarted,
       currentGame,
       handleModeSelect,
+      handleGameCreated,
+      handleGameJoined,
       startGame,
       backToMenu,
       backToModeSelection

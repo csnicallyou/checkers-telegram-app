@@ -10,113 +10,156 @@ const wss = new WebSocket.Server({ server });
 app.use(cors());
 app.use(express.json());
 
-// Хранилище игр
 const games = {};
 
 app.get('/', (req, res) => {
-  res.send('✅ Сервер работает');
+  res.send('✅ Server OK');
 });
 
 wss.on('connection', (ws) => {
   console.log('🟢 Новый игрок');
+  
+  ws.playerName = null;
+  ws.gameId = null;
 
   ws.on('message', (message) => {
-    const data = JSON.parse(message);
-    console.log('📩 Получено:', data.type);
+    try {
+      const data = JSON.parse(message);
+      console.log('📩 Получено:', data.type);
 
-    // СОЗДАНИЕ ИГРЫ
-    if (data.type === 'create') {
-      const gameId = Math.random().toString(36).substring(2, 8).toUpperCase();
-      
-      games[gameId] = {
-        id: gameId,
-        host: ws,
-        hostName: data.playerName,
-        guest: null,
-        guestName: null,
-        board: null,
-        currentPlayer: 1,
-        created: Date.now()
-      };
-      
-      ws.gameId = gameId;
-      ws.playerName = data.playerName;
-      
-      ws.send(JSON.stringify({
-        type: 'created',
-        gameId
-      }));
-      
-      console.log(`✅ Игра создана: ${gameId} (${data.playerName})`);
-    }
-    
-    // ПРИСОЕДИНЕНИЕ К ИГРЕ
-    else if (data.type === 'join') {
-      const game = games[data.gameId];
-      
-      if (!game) {
-        ws.send(JSON.stringify({ type: 'error', message: 'Игра не найдена' }));
-        return;
+      if (data.type === 'host_create') {
+        const gameId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        
+        games[gameId] = {
+          host: ws,
+          hostName: data.playerName,
+          hostSide: data.side || 'white',
+          guest: null,
+          guestName: null,
+          guestReady: false,
+          created: Date.now()
+        };
+        
+        ws.gameId = gameId;
+        ws.playerName = data.playerName;
+        
+        ws.send(JSON.stringify({
+          type: 'host_created',
+          gameId,
+          side: data.side || 'white'
+        }));
       }
       
-      if (game.guest) {
-        ws.send(JSON.stringify({ type: 'error', message: 'Игра заполнена' }));
-        return;
-      }
-      
-      game.guest = ws;
-      game.guestName = data.playerName;
-      ws.gameId = data.gameId;
-      ws.playerName = data.playerName;
-      
-      // Уведомляем хоста
-      if (game.host) {
-        game.host.send(JSON.stringify({
+      else if (data.type === 'guest_join') {
+        const game = games[data.gameId];
+        
+        if (!game) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Игра не найдена' }));
+          return;
+        }
+        
+        if (game.guest) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Игра уже заполнена' }));
+          return;
+        }
+        
+        game.guest = ws;
+        game.guestName = data.playerName;
+        ws.gameId = data.gameId;
+        ws.playerName = data.playerName;
+        
+        const guestSide = game.hostSide === 'white' ? 'black' : 'white';
+        
+        if (game.host) {
+          game.host.send(JSON.stringify({
+            type: 'guest_joined',
+            guestName: data.playerName,
+            guestSide: guestSide
+          }));
+        }
+        
+        ws.send(JSON.stringify({
           type: 'guest_joined',
-          guestName: data.playerName
+          gameId: data.gameId,
+          myName: data.playerName,
+          mySide: guestSide,
+          hostName: game.hostName,
+          hostSide: game.hostSide
         }));
       }
       
-      // Уведомляем гостя
-      ws.send(JSON.stringify({
-        type: 'joined',
-        gameId: data.gameId,
-        hostName: game.hostName
-      }));
-      
-      console.log(`✅ ${data.playerName} присоединился к ${data.gameId}`);
-    }
-    
-    // ХОД
-    else if (data.type === 'move') {
-      const game = games[data.gameId];
-      if (!game) return;
-      
-      // Сохраняем состояние на сервере
-      game.board = data.board;
-      game.currentPlayer = data.currentPlayer;
-      
-      // Отправляем ход другому игроку
-      const target = game.host === ws ? game.guest : game.host;
-      if (target && target.readyState === WebSocket.OPEN) {
-        target.send(JSON.stringify({
-          type: 'move',
-          move: data.move,
-          board: data.board,
-          currentPlayer: data.currentPlayer
-        }));
+      else if (data.type === 'guest_ready') {
+        const game = games[data.gameId];
+        if (!game) return;
+        
+        game.guestReady = true;
+        
+        if (game.host) {
+          game.host.send(JSON.stringify({ type: 'guest_ready' }));
+        }
       }
+      
+      else if (data.type === 'host_start') {
+        const game = games[data.gameId];
+        if (!game || !game.guest || !game.guestReady) return;
+        
+        if (game.host) {
+          game.host.send(JSON.stringify({
+            type: 'game_start',
+            myColor: game.hostSide === 'white' ? 1 : 2,
+            opponentColor: game.hostSide === 'white' ? 2 : 1,
+            opponentName: game.guestName
+          }));
+        }
+        
+        if (game.guest) {
+          game.guest.send(JSON.stringify({
+            type: 'game_start',
+            myColor: game.hostSide === 'white' ? 2 : 1,
+            opponentColor: game.hostSide === 'white' ? 1 : 2,
+            opponentName: game.hostName
+          }));
+        }
+      }
+      
+      else if (data.type === 'move') {
+        const game = games[data.gameId];
+        if (!game) return;
+        
+        const target = game.host === ws ? game.guest : game.host;
+        if (target) {
+          target.send(JSON.stringify({
+            type: 'opponent_move',
+            move: data.move,
+            board: data.board,
+            currentPlayer: data.currentPlayer
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
     }
   });
 
   ws.on('close', () => {
-    console.log(`🔴 Игрок отключился`);
-    
-    // Очистка
     for (const gameId in games) {
       const game = games[gameId];
-      if (game.host === ws || game.guest === ws) {
+      
+      if (game.host === ws) {
+        if (game.guest) {
+          game.guest.send(JSON.stringify({ type: 'host_left' }));
+        }
         delete games[gameId];
+        break;
+      }
+      
+      if (game.guest === ws) {
+        game.guest = null;
+        game.guestName = null;
+        game.guestReady = false;
+        if (game.host) {
+          game.host.send(JSON.stringify({ type: 'guest_left' }));
+        }
         break;
       }
     }
