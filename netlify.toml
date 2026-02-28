@@ -1,18 +1,14 @@
+# Создайте netlify.toml
+@"
 [build]
   command = "npm run build"
-  functions = "netlify/functions"
   publish = "dist"
 
-[functions]
-  node_bundler = "esbuild"
+[build.environment]
+  NODE_VERSION = "18"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "ALLOW-FROM https://telegram.org/"
-    Content-Security-Policy = "frame-ancestors https://telegram.org;"
+"@ | Out-File -FilePath netlify.toml -Encoding UTF8
