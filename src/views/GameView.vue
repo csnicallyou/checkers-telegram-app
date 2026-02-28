@@ -20,6 +20,7 @@
       :best-move="bestMove"
       :show-hints="showHints && !multiplayerMode"
       :disabled="(multiplayerMode && !isMyTurn)"
+      :flipped="isFlipped"
       @move-made="handleMove"
       @piece-selected="handlePieceSelected"
     />
@@ -114,6 +115,13 @@ export default {
       return currentPlayer.value === multiplayer.playerColor;
     });
 
+    // Определяем, нужно ли переворачивать доску
+    const isFlipped = computed(() => {
+        if (!props.multiplayerMode) return false;
+        // Если игрок за черных (color 2), переворачиваем доску
+        return multiplayer.playerColor === 2;
+    });
+
     // Обработка входящих сообщений для мультиплеера
     const handleTelegramMessage = (data) => {
       if (props.multiplayerMode) {
@@ -148,6 +156,8 @@ export default {
         };
       }
     };
+
+    
 
     // Отписка от событий
     const cleanupMultiplayer = () => {

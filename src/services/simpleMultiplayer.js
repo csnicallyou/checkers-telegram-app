@@ -7,6 +7,7 @@ class SimpleMultiplayer {
         this.isHost = false;
         this.opponent = null;
         this.connected = false;
+        this.playerSide = 'white'; // 'white' или 'black'
         
         this.serverUrl = import.meta.env.VITE_SERVER_URL || 'wss://checkers-server-0y7z.onrender.com';
         
@@ -16,6 +17,7 @@ class SimpleMultiplayer {
         this.onGameStarted = null;
         this.onOpponentMove = null;
         this.onOpponentLeft = null;
+        this.onSideSelected = null;
         this.onError = null;
     }
 
@@ -66,6 +68,7 @@ class SimpleMultiplayer {
             case 'game_created':
                 this.gameId = data.gameId;
                 this.isHost = true;
+                this.playerSide = data.side || 'white';
                 if (this.onGameCreated) this.onGameCreated(data);
                 break;
                 
@@ -73,12 +76,18 @@ class SimpleMultiplayer {
                 this.gameId = data.gameId;
                 this.isHost = false;
                 this.opponent = { name: data.host.name };
+                this.playerSide = data.side || 'black';
                 if (this.onGameJoined) this.onGameJoined(data);
                 break;
                 
             case 'player_joined':
                 this.opponent = { name: data.guest.name };
                 if (this.onPlayerJoined) this.onPlayerJoined(data);
+                break;
+                
+            case 'side_selected':
+                this.playerSide = data.side;
+                if (this.onSideSelected) this.onSideSelected(data.side);
                 break;
                 
             case 'game_started':
@@ -100,12 +109,13 @@ class SimpleMultiplayer {
         }
     }
 
-    async createGame(playerName) {
+    async createGame(playerName, side = 'white') {
         this.playerName = playerName;
+        this.playerSide = side;
         if (!this.connected) {
             await this.connect();
         }
-        this.send('create_game', { playerName });
+        this.send('create_game', { playerName, side });
     }
 
     async joinGame(gameId, playerName) {
@@ -114,6 +124,12 @@ class SimpleMultiplayer {
             await this.connect();
         }
         this.send('join_game', { gameId: gameId.toUpperCase(), playerName });
+    }
+
+    sendSideSelection(side) {
+        if (this.gameId) {
+            this.send('select_side', { gameId: this.gameId, side });
+        }
     }
 
     startGame() {

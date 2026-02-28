@@ -54,18 +54,56 @@
         <button @click="copyCode" class="copy-btn">📋</button>
       </div>
 
+      <!-- Выбор стороны (только для хоста, пока нет гостя) -->
+      <div v-if="isHost && !opponent" class="side-selection">
+        <h4>Выберите свою сторону:</h4>
+        <div class="side-buttons">
+          <button 
+            @click="selectSide('white')" 
+            class="side-btn white"
+            :class="{ selected: selectedSide === 'white' }"
+          >
+            ⚪ Белые
+          </button>
+          <button 
+            @click="selectSide('black')" 
+            class="side-btn black"
+            :class="{ selected: selectedSide === 'black' }"
+          >
+            ⚫ Черные
+          </button>
+        </div>
+        <p class="hint">Гость получит противоположную сторону</p>
+      </div>
+
+      <!-- Индикация выбранной стороны для гостя -->
+      <div v-if="!isHost && selectedSide" class="side-info">
+        <p>Вы играете за <strong>{{ selectedSide === 'white' ? '⚪ Белых' : '⚫ Черных' }}</strong></p>
+      </div>
+
       <div class="players">
-        <div class="player" :class="{ host: isHost }">
-          <span class="name">{{ playerName }}</span>
-          <span class="badge">Вы</span>
-          <span class="color white">⚪</span>
+        <div class="player" :class="{ 
+          'white-side': (isHost && selectedSide === 'white') || (!isHost && selectedSide === 'black'),
+          'black-side': (isHost && selectedSide === 'black') || (!isHost && selectedSide === 'white')
+        }">
+          <span class="player-role">Хост</span>
+          <span class="player-name">{{ playerName }}</span>
+          <span class="player-side">
+            {{ (isHost && selectedSide === 'white') || (!isHost && selectedSide === 'black') ? '⚪' : '⚫' }}
+          </span>
         </div>
         
         <div class="vs">VS</div>
         
-        <div class="player">
-          <span class="name">{{ opponent?.name || 'Ожидание...' }}</span>
-          <span v-if="opponent" class="color black">⚫</span>
+        <div class="player" :class="{ 
+          'black-side': (isHost && selectedSide === 'white') || (!isHost && selectedSide === 'black'),
+          'white-side': (isHost && selectedSide === 'black') || (!isHost && selectedSide === 'white')
+        }">
+          <span class="player-role">Гость</span>
+          <span class="player-name">{{ opponent?.name || 'Ожидание...' }}</span>
+          <span v-if="opponent" class="player-side">
+            {{ (isHost && selectedSide === 'white') || (!isHost && selectedSide === 'black') ? '⚫' : '⚪' }}
+          </span>
         </div>
       </div>
 
@@ -104,6 +142,7 @@ export default {
     const isHost = ref(false);
     const opponent = ref(null);
     const error = ref('');
+    const selectedSide = ref('white');
 
     onMounted(async () => {
       try {
@@ -113,22 +152,40 @@ export default {
         simpleMultiplayer.onGameCreated = (data) => {
           gameId.value = data.gameId;
           isHost.value = true;
-          emit('game-created', { id: data.gameId, host: { name: playerName.value } });
+          selectedSide.value = data.side || 'white';
+          emit('game-created', { 
+            id: data.gameId, 
+            host: { name: playerName.value },
+            side: selectedSide.value 
+          });
         };
         
         simpleMultiplayer.onGameJoined = (data) => {
           gameId.value = data.gameId;
           isHost.value = false;
           opponent.value = { name: data.host.name };
-          emit('game-joined', { id: data.gameId, host: data.host });
+          selectedSide.value = data.side || 'black';
+          emit('game-joined', { 
+            id: data.gameId, 
+            host: data.host,
+            side: selectedSide.value 
+          });
         };
         
         simpleMultiplayer.onPlayerJoined = (data) => {
           opponent.value = { name: data.guest.name };
         };
         
+        simpleMultiplayer.onSideSelected = (side) => {
+          selectedSide.value = side;
+        };
+        
         simpleMultiplayer.onGameStarted = () => {
-          emit('start-game', { id: gameId.value });
+          emit('start-game', { 
+            id: gameId.value, 
+            isHost: isHost.value,
+            side: selectedSide.value 
+          });
         };
         
         simpleMultiplayer.onError = (msg) => {
@@ -149,9 +206,16 @@ export default {
       simpleMultiplayer.leaveGame();
     });
 
+    const selectSide = (side) => {
+      selectedSide.value = side;
+      if (isHost.value && gameId.value) {
+        simpleMultiplayer.sendSideSelection(side);
+      }
+    };
+
     const createGame = () => {
       if (!playerName.value) return;
-      simpleMultiplayer.createGame(playerName.value);
+      simpleMultiplayer.createGame(playerName.value, selectedSide.value);
     };
 
     const joinGame = () => {
@@ -182,6 +246,8 @@ export default {
       isHost,
       opponent,
       error,
+      selectedSide,
+      selectSide,
       createGame,
       joinGame,
       startGame,
@@ -298,6 +364,55 @@ export default {
   font-size: 18px;
 }
 
+.side-selection {
+  margin: 20px 0;
+  padding: 15px;
+  background: #f0f0f0;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.side-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 15px 0;
+}
+
+.side-btn {
+  padding: 10px 20px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
+  flex: 1;
+  max-width: 120px;
+}
+
+.side-btn.white {
+  background: white;
+  color: #333;
+}
+
+.side-btn.black {
+  background: #333;
+  color: white;
+}
+
+.side-btn.selected {
+  border-color: #4CAF50;
+  transform: scale(1.05);
+}
+
+.side-info {
+  text-align: center;
+  padding: 10px;
+  background: #e8f5e9;
+  border-radius: 6px;
+  margin: 10px 0;
+}
+
 .players {
   display: flex;
   justify-content: space-between;
@@ -308,39 +423,38 @@ export default {
 .player {
   flex: 1;
   padding: 15px;
-  text-align: center;
   border-radius: 8px;
-  background: #f0f0f0;
-  position: relative;
+  text-align: center;
+  transition: all 0.2s;
 }
 
-.player.host {
+.player.white-side {
   background: #e3f2fd;
+  border: 2px solid #2196F3;
 }
 
-.name {
+.player.black-side {
+  background: #fce4ec;
+  border: 2px solid #f44336;
+}
+
+.player-role {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 5px;
+}
+
+.player-name {
   display: block;
   font-weight: bold;
   margin-bottom: 5px;
 }
 
-.badge {
+.player-side {
   display: inline-block;
-  padding: 2px 6px;
-  background: #4CAF50;
-  color: white;
-  border-radius: 4px;
-  font-size: 12px;
-  margin-right: 5px;
+  font-size: 24px;
 }
-
-.color {
-  display: inline-block;
-  font-size: 20px;
-}
-
-.color.white { color: #333; }
-.color.black { color: #666; }
 
 .vs {
   font-size: 20px;

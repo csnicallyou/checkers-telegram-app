@@ -35,7 +35,7 @@ app.get('/', (req, res) => {
           <p><strong>Активных игр:</strong> ${games.size}</p>
           <p><strong>Подключено клиентов:</strong> ${clients.size}</p>
         </div>
-        <p>Версия: Simple WebSocket Server</p>
+        <p>Версия: Simple WebSocket Server with Side Selection</p>
       </div>
     </body>
     </html>
@@ -77,11 +77,15 @@ wss.on('connection', (ws) => {
 
       switch (data.type) {
         case 'create_game':
-          handleCreateGame(clientId, data.playerName);
+          handleCreateGame(clientId, data.playerName, data.side);
           break;
           
         case 'join_game':
           handleJoinGame(clientId, data.gameId, data.playerName);
+          break;
+          
+        case 'select_side':
+          handleSelectSide(clientId, data.gameId, data.side);
           break;
           
         case 'start_game':
@@ -106,7 +110,7 @@ wss.on('connection', (ws) => {
   });
 });
 
-function handleCreateGame(clientId, playerName) {
+function handleCreateGame(clientId, playerName, side = 'white') {
   const client = clients.get(clientId);
   if (!client) return;
   
@@ -121,7 +125,8 @@ function handleCreateGame(clientId, playerName) {
     id: gameId,
     host: {
       id: clientId,
-      name: playerName
+      name: playerName,
+      side: side
     },
     guest: null,
     created: Date.now()
@@ -136,10 +141,11 @@ function handleCreateGame(clientId, playerName) {
   client.ws.send(JSON.stringify({
     type: 'game_created',
     gameId,
-    host: { name: playerName }
+    host: { name: playerName, side: side },
+    side: side
   }));
   
-  console.log(`✅ Игра создана: ${gameId} (хост: ${playerName})`);
+  console.log(`✅ Игра создана: ${gameId} (хост: ${playerName}, сторона: ${side})`);
 }
 
 function handleJoinGame(clientId, gameId, playerName) {
@@ -163,10 +169,15 @@ function handleJoinGame(clientId, gameId, playerName) {
     return;
   }
   
+  // Определяем сторону для гостя (противоположная хосту)
+  const hostSide = game.host.side;
+  const guestSide = hostSide === 'white' ? 'black' : 'white';
+  
   // Добавляем гостя
   game.guest = {
     id: clientId,
-    name: playerName
+    name: playerName,
+    side: guestSide
   };
   
   // Обновляем клиента
@@ -179,7 +190,7 @@ function handleJoinGame(clientId, gameId, playerName) {
   if (hostClient) {
     hostClient.ws.send(JSON.stringify({
       type: 'player_joined',
-      guest: { name: playerName }
+      guest: { name: playerName, side: guestSide }
     }));
   }
   
@@ -187,10 +198,47 @@ function handleJoinGame(clientId, gameId, playerName) {
   client.ws.send(JSON.stringify({
     type: 'game_joined',
     gameId,
-    host: { name: game.host.name }
+    host: { name: game.host.name, side: hostSide },
+    side: guestSide
   }));
   
-  console.log(`✅ ${playerName} присоединился к игре ${gameId}`);
+  console.log(`✅ ${playerName} присоединился к игре ${gameId} (сторона: ${guestSide})`);
+}
+
+function handleSelectSide(clientId, gameId, side) {
+  const game = games.get(gameId);
+  if (!game) return;
+  
+  // Только хост может менять сторону
+  if (game.host.id !== clientId) return;
+  
+  // Меняем сторону хоста
+  game.host.side = side;
+  
+  // Уведомляем хоста
+  const hostClient = clients.get(clientId);
+  if (hostClient) {
+    hostClient.ws.send(JSON.stringify({
+      type: 'side_selected',
+      side: side
+    }));
+  }
+  
+  // Если есть гость, уведомляем его об изменении стороны
+  if (game.guest) {
+    const guestClient = clients.get(game.guest.id);
+    if (guestClient) {
+      const guestSide = side === 'white' ? 'black' : 'white';
+      game.guest.side = guestSide;
+      
+      guestClient.ws.send(JSON.stringify({
+        type: 'side_selected',
+        side: guestSide
+      }));
+    }
+  }
+  
+  console.log(`🔄 Игра ${gameId}: хост сменил сторону на ${side}`);
 }
 
 function handleStartGame(clientId, gameId) {
@@ -287,5 +335,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('\n=== 🚀 ПРОСТОЙ СЕРВЕР ЗАПУЩЕН ===');
   console.log(`📡 Порт: ${PORT}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
+  console.log(`🔄 Поддержка выбора сторон: ВКЛЮЧЕНА`);
   console.log('================================\n');
 });

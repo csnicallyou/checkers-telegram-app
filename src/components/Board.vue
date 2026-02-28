@@ -1,6 +1,6 @@
 <template>
   <div class="board-wrapper">
-    <div class="board-container">
+    <div class="board-container" :class="{ flipped }">
       <div 
         v-for="row in 8" 
         :key="`row-${row}`" 
@@ -9,14 +9,20 @@
         <Cell
           v-for="col in 8"
           :key="`cell-${row}-${col}`"
-          :piece="board[row-1][col-1]"
+          :piece="board[flipped ? 7 - (row-1) : row-1][flipped ? 7 - (col-1) : col-1]"
           :is-dark="(row + col) % 2 === 1"
-          :is-selected="selectedRow === row-1 && selectedCol === col-1"
-          :is-valid-move="isValidMove(row-1, col-1)"
-          :is-last-move="isLastMove(row-1, col-1)"
-          :is-best-move="isBestMove(row-1, col-1)"
-          :is-mandatory-capture="isMandatoryCapture(row-1, col-1)"
-          @click="handleCellClick(row-1, col-1)"
+          :is-selected="selectedRow === (flipped ? 7 - (row-1) : row-1) && 
+                        selectedCol === (flipped ? 7 - (col-1) : col-1)"
+          :is-valid-move="isValidMove(flipped ? 7 - (row-1) : row-1, 
+                                     flipped ? 7 - (col-1) : col-1)"
+          :is-last-move="isLastMove(flipped ? 7 - (row-1) : row-1, 
+                                   flipped ? 7 - (col-1) : col-1)"
+          :is-best-move="isBestMove(flipped ? 7 - (row-1) : row-1, 
+                                   flipped ? 7 - (col-1) : col-1)"
+          :is-mandatory-capture="isMandatoryCapture(flipped ? 7 - (row-1) : row-1, 
+                                                   flipped ? 7 - (col-1) : col-1)"
+          @click="handleCellClick(flipped ? 7 - (row-1) : row-1, 
+                                  flipped ? 7 - (col-1) : col-1)"
         />
       </div>
     </div>
@@ -53,6 +59,10 @@ export default {
       default: false
     },
     disabled: {
+      type: Boolean,
+      default: false
+    },
+    flipped: {
       type: Boolean,
       default: false
     }
@@ -175,6 +185,15 @@ export default {
   background: #f0d9b5;
   box-shadow: 0 10px 20px rgba(0,0,0,0.3);
   width: fit-content;
+  transition: transform 0.3s ease;
+}
+
+.board-container.flipped {
+  transform: rotate(180deg);
+}
+
+.board-container.flipped .cell {
+  transform: rotate(180deg);
 }
 
 .board-row {
