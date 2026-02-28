@@ -169,6 +169,10 @@ export default {
             gameId.value = data.gameId;
             isHost.value = true;
             hostSide.value = data.side;
+            // Очищаем данные гостя
+            guestName.value = null;
+            guestSide.value = null;
+            guestReady.value = false;
         };
 
         simpleGame.onGuestJoined = (data) => {
@@ -182,10 +186,10 @@ export default {
             } else {
                 // Мы гость - мы присоединились
                 gameId.value = data.gameId;
-                guestSide.value = data.mySide;
+                guestSide.value = data.mySide; // Это сторона гостя
                 hostSide.value = data.hostSide;
                 guestName.value = data.hostName; // Имя хоста для отображения
-                console.log(`✅ Гость подключился за ${data.mySide}, хост: ${data.hostName}`);
+                console.log(`✅ Гость подключился за ${data.mySide}, хост: ${data.hostName} за ${data.hostSide}`);
             }
         };
 
@@ -196,7 +200,6 @@ export default {
 
         simpleGame.onGameStart = (data) => {
             console.log('🎮 ПОЛУЧЕНО СОБЫТИЕ game_start:', data);
-            console.log('📤 Отправка события start-game в App.vue');
             emit('start-game', {
                 myColor: data.myColor,
                 opponentColor: data.opponentColor,

@@ -12,7 +12,7 @@ class SimpleGame {
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
         this.pendingMessages = [];
-        this.shouldReconnect = true; // Флаг для контроля переподключения
+        this.shouldReconnect = true;
         
         this.serverUrl = import.meta.env.VITE_SERVER_URL || 'wss://checkers-server-0y7z.onrender.com';
         
@@ -38,7 +38,6 @@ class SimpleGame {
                     this.reconnectAttempts = 0;
                     this.shouldReconnect = true;
                     
-                    // Если у нас был gameId, отправляем запрос на восстановление сессии
                     if (this.gameId) {
                         console.log('🔄 Восстановление сессии игры:', this.gameId);
                         this.send('reconnect', {
@@ -47,7 +46,6 @@ class SimpleGame {
                         });
                     }
                     
-                    // Отправляем все накопившиеся сообщения
                     while (this.pendingMessages.length > 0) {
                         const msg = this.pendingMessages.shift();
                         this.ws.send(JSON.stringify(msg));
@@ -64,11 +62,8 @@ class SimpleGame {
                 
                 this.ws.onclose = (event) => {
                     console.log('🔴 WebSocket closed. Code:', event.code, 'Reason:', event.reason);
-                    console.log('   Было ли соединение открыто:', this.connected);
-                    console.log('   Текущий gameId:', this.gameId);
                     this.connected = false;
                     
-                    // Пытаемся переподключиться только если нужно
                     if (this.shouldReconnect && this.gameId) {
                         console.log('🔄 Попытка переподключения через 2 секунды...');
                         setTimeout(() => {
@@ -94,31 +89,43 @@ class SimpleGame {
                                 this.mySide = data.side;
                                 this.myColor = data.side === 'white' ? 1 : 2;
                                 this.isHost = true;
+                                console.log(`🎮 Host created: side=${this.mySide}, color=${this.myColor}`);
                                 if (this.onHostCreated) this.onHostCreated(data);
                                 break;
                                 
                             case 'guest_joined':
+                                console.log('👋 guest_joined, isHost=', this.isHost);
                                 if (this.isHost) {
+                                    // Мы хост - к нам присоединился гость
+                                    const guestSide = data.guestSide;
+                                    const guestColor = guestSide === 'white' ? 1 : 2;
+                                    console.log(`👋 Guest joined: side=${guestSide}, color=${guestColor}`);
                                     if (this.onGuestJoined) {
                                         this.onGuestJoined({
                                             guestName: data.guestName,
-                                            guestSide: data.guestSide
+                                            guestSide: guestSide,
+                                            guestColor: guestColor
                                         });
                                     }
                                 } else {
+                                    // Мы гость - мы присоединились к игре
                                     this.gameId = data.gameId;
                                     this.myName = data.myName;
                                     this.mySide = data.mySide;
                                     this.myColor = data.mySide === 'white' ? 1 : 2;
                                     this.opponentName = data.hostName;
+                                    this.opponentSide = data.hostSide;
                                     this.opponentColor = data.hostSide === 'white' ? 1 : 2;
                                     this.isHost = false;
+                                    console.log(`👋 Guest connected: mySide=${this.mySide}, myColor=${this.myColor}, host=${this.opponentName}, hostColor=${this.opponentColor}`);
                                     if (this.onGuestJoined) {
                                         this.onGuestJoined({
                                             gameId: data.gameId,
                                             mySide: data.mySide,
+                                            myColor: this.myColor,
                                             hostName: data.hostName,
-                                            hostSide: data.hostSide
+                                            hostSide: data.hostSide,
+                                            hostColor: this.opponentColor
                                         });
                                     }
                                 }
@@ -132,6 +139,7 @@ class SimpleGame {
                                 this.myColor = data.myColor;
                                 this.opponentName = data.opponentName;
                                 this.opponentColor = data.opponentColor;
+                                console.log(`🎮 Game start: myColor=${this.myColor}, opponent=${this.opponentName}, opponentColor=${this.opponentColor}`);
                                 if (this.onGameStart) this.onGameStart(data);
                                 break;
                                 
@@ -182,10 +190,9 @@ class SimpleGame {
         const message = JSON.stringify({ type, ...data });
         
         if (!this.checkConnection()) {
-            console.log('📥 Сообщение добавлено в очередь (не удалось отправить):', { type, ...data });
+            console.log('📥 Сообщение добавлено в очередь:', { type, ...data });
             this.pendingMessages.push({ type, ...data });
             
-            // Пытаемся переподключиться, если нужно
             if (!this.connected && this.gameId) {
                 this.connect().catch(() => {});
             }
@@ -240,7 +247,7 @@ class SimpleGame {
 
     disconnect() {
         console.log('👋 Отключение от сервера');
-        this.shouldReconnect = false; // Отключаем автоматическое переподключение
+        this.shouldReconnect = false;
         if (this.ws) {
             this.ws.close();
             this.ws = null;

@@ -35,7 +35,7 @@
 
 <script>
 import { ref, defineAsyncComponent } from 'vue';
-import { simpleGame } from './services/simpleGame'; // ← ДОБАВЬТЕ ЭТУ СТРОКУ
+import { simpleGame } from './services/simpleGame'; 
 
 // Ленивая загрузка компонентов
 const ModeSelection = defineAsyncComponent(() => 
