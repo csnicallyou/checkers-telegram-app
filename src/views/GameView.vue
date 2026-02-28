@@ -126,24 +126,31 @@ export default {
     });
 
     // Инициализация игры из пропсов
+    // Инициализация игры из пропсов
     const initGame = () => {
-      console.log('🎮 GameView инициализация с props:', props.gameData);
-      
-      if (!props.multiplayerMode || !props.gameData) {
-        console.log('❌ Нет данных мультиплеера');
-        return;
-      }
+        console.log('🎮 GameView инициализация с props:', props.gameData);
+        
+        if (!props.multiplayerMode || !props.gameData) {
+            console.log('❌ Нет данных мультиплеера');
+            return;
+        }
 
-      const { myColor, opponentColor, opponentName } = props.gameData;
-      
-      myColor.value = myColor;
-      opponentColor.value = opponentColor;
-      opponent.value = { name: opponentName };
-      
-      console.log('✅ Игра инициализирована:', {
-        myColor: myColor.value,
-        opponent: opponent.value
-      });
+        // Эти поля должны приходить из App.vue
+        const { myColor, opponentColor, opponentName } = props.gameData;
+        
+        if (!myColor || !opponentColor) {
+            console.log('❌ Нет данных о цветах в gameData');
+            return;
+        }
+        
+        myColor.value = myColor;
+        opponentColor.value = opponentColor;
+        opponent.value = { name: opponentName || 'Соперник' };
+        
+        console.log('✅ Игра инициализирована:', {
+            myColor: myColor.value,
+            opponent: opponent.value
+        });
     };
 
     // Настройка слушателей simpleGame
