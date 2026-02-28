@@ -165,42 +165,46 @@ export default {
         console.log('✅ Connected to server');
         
         simpleGame.onHostCreated = (data) => {
-          console.log('🎮 Host created:', data);
-          gameId.value = data.gameId;
-          isHost.value = true;
-          hostSide.value = data.side;
-          guestSide.value = null;
-          guestReady.value = false;
-        };
-        
-        simpleGame.onGuestConnected = (data) => {
-          console.log('👋 Guest connected event:', data);
-          
-          if (isHost.value) {
-            // Мы хост - обновляем информацию о госте
-            guestSide.value = data.guestSide;
-            guestName.value = 'Гость';
-            console.log('✅ Хост видит подключение гостя за', data.guestSide);
-          } else {
-            // Мы гость - сохраняем свои данные
+            console.log('🎮 Игра создана:', data);
             gameId.value = data.gameId;
-            guestSide.value = data.mySide;
-            hostSide.value = data.hostSide;
-            console.log('✅ Гость подключился за', data.mySide);
-          }
+            isHost.value = true;
+            hostSide.value = data.side;
+            hostName.value = simpleGame.myName;
+            guestSide.value = null;
+            guestName.value = null;
+            guestReady.value = false;
         };
-        
+
+        simpleGame.onGuestJoined = (data) => {
+            console.log('👋 Событие guestJoined:', data, 'isHost:', isHost.value);
+            
+            if (isHost.value) {
+                // Мы хост - к нам присоединился гость
+                guestName.value = data.guestName;
+                guestSide.value = data.guestSide;
+                console.log(`✅ Хост видит подключение гостя ${data.guestName} за ${data.guestSide}`);
+            } else {
+                // Мы гость - мы присоединились
+                gameId.value = data.gameId;
+                guestSide.value = data.mySide;
+                hostSide.value = data.hostSide;
+                hostName.value = data.hostName;
+                console.log(`✅ Гость подключился за ${data.mySide}, хост: ${data.hostName}`);
+            }
+        };
+
         simpleGame.onGuestReady = () => {
-          console.log('✅ Guest ready');
-          guestReady.value = true;
+            console.log('✅ Гость готов');
+            guestReady.value = true;
         };
-        
+
         simpleGame.onGameStart = (data) => {
-          console.log('🎮 Game start:', data);
-          emit('game-start', {
-            myColor: data.myColor,
-            opponentColor: data.opponentColor
-          });
+            console.log('🎮 Игра начинается:', data);
+            emit('game-start', {
+                myColor: data.myColor,
+                opponentColor: data.opponentColor,
+                opponentName: data.opponentName
+            });
         };
         
         simpleGame.onHostLeft = () => {

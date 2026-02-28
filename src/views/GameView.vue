@@ -134,15 +134,15 @@ export default {
         return;
       }
 
-      const { myColor: playerColor, opponentColor: oppColor } = props.gameData;
+      const { myColor, opponentColor, opponentName } = props.gameData;
       
-      myColor.value = playerColor;
-      opponentColor.value = oppColor;
-      opponent.value = { name: myColor.value === 1 ? 'Черные' : 'Белые' };
+      myColor.value = myColor;
+      opponentColor.value = opponentColor;
+      opponent.value = { name: opponentName };
       
       console.log('✅ Игра инициализирована:', {
         myColor: myColor.value,
-        opponentColor: opponentColor.value
+        opponent: opponent.value
       });
     };
 

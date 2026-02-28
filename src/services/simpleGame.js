@@ -2,8 +2,10 @@ class SimpleGame {
     constructor() {
         this.ws = null;
         this.gameId = null;
-        this.mySide = null; // 'white' или 'black'
-        this.myColor = null; // 1 или 2
+        this.myName = null;
+        this.mySide = null;
+        this.myColor = null;
+        this.opponentName = null;
         this.opponentColor = null;
         this.isHost = false;
         this.connected = false;
@@ -11,7 +13,7 @@ class SimpleGame {
         this.serverUrl = import.meta.env.VITE_SERVER_URL || 'wss://checkers-server-0y7z.onrender.com';
         
         this.onHostCreated = null;
-        this.onGuestConnected = null;
+        this.onGuestJoined = null;
         this.onGuestReady = null;
         this.onGameStart = null;
         this.onOpponentMove = null;
@@ -29,11 +31,14 @@ class SimpleGame {
                 resolve();
             };
             
-            this.ws.onerror = reject;
+            this.ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                reject(error);
+            };
             
             this.ws.onmessage = (e) => {
                 const data = JSON.parse(e.data);
-                console.log('📩', data);
+                console.log('📩 Получено:', data);
                 
                 switch(data.type) {
                     case 'host_created':
@@ -44,13 +49,32 @@ class SimpleGame {
                         if (this.onHostCreated) this.onHostCreated(data);
                         break;
                         
-                    case 'guest_connected':
-                        if (this.onGuestConnected) {
-                            this.onGuestConnected({
-                                gameId: data.gameId,
-                                mySide: data.mySide,
-                                hostSide: data.hostSide
-                            });
+                    case 'guest_joined':
+                        if (this.isHost) {
+                            // Мы хост - к нам присоединился гость
+                            if (this.onGuestJoined) {
+                                this.onGuestJoined({
+                                    guestName: data.guestName,
+                                    guestSide: data.guestSide
+                                });
+                            }
+                        } else {
+                            // Мы гость - мы присоединились к игре
+                            this.gameId = data.gameId;
+                            this.myName = data.myName;
+                            this.mySide = data.mySide;
+                            this.myColor = data.mySide === 'white' ? 1 : 2;
+                            this.opponentName = data.hostName;
+                            this.opponentColor = data.hostSide === 'white' ? 1 : 2;
+                            this.isHost = false;
+                            if (this.onGuestJoined) {
+                                this.onGuestJoined({
+                                    gameId: data.gameId,
+                                    mySide: data.mySide,
+                                    hostName: data.hostName,
+                                    hostSide: data.hostSide
+                                });
+                            }
                         }
                         break;
                         
@@ -60,6 +84,7 @@ class SimpleGame {
                         
                     case 'game_start':
                         this.myColor = data.myColor;
+                        this.opponentName = data.opponentName;
                         this.opponentColor = data.opponentColor;
                         if (this.onGameStart) this.onGameStart(data);
                         break;
@@ -84,27 +109,40 @@ class SimpleGame {
         });
     }
 
-    // Хост создает игру
     hostCreate(side) {
-        this.ws.send(JSON.stringify({ type: 'host_create', side }));
+        const playerName = this.getTelegramName();
+        this.myName = playerName;
+        this.ws.send(JSON.stringify({ 
+            type: 'host_create', 
+            side,
+            playerName 
+        }));
     }
 
-    // Гость присоединяется
     guestJoin(gameId) {
-        this.ws.send(JSON.stringify({ type: 'guest_join', gameId: gameId.toUpperCase() }));
+        const playerName = this.getTelegramName();
+        this.myName = playerName;
+        this.ws.send(JSON.stringify({ 
+            type: 'guest_join', 
+            gameId: gameId.toUpperCase(),
+            playerName 
+        }));
     }
 
-    // Гость говорит "готов"
     guestReady() {
-        this.ws.send(JSON.stringify({ type: 'guest_ready', gameId: this.gameId }));
+        this.ws.send(JSON.stringify({ 
+            type: 'guest_ready', 
+            gameId: this.gameId 
+        }));
     }
 
-    // Хост начинает игру
     hostStart() {
-        this.ws.send(JSON.stringify({ type: 'host_start', gameId: this.gameId }));
+        this.ws.send(JSON.stringify({ 
+            type: 'host_start', 
+            gameId: this.gameId 
+        }));
     }
 
-    // Отправить ход
     sendMove(move, board, currentPlayer) {
         this.ws.send(JSON.stringify({
             type: 'move',
@@ -113,6 +151,17 @@ class SimpleGame {
             board,
             currentPlayer
         }));
+    }
+
+    getTelegramName() {
+        // Пытаемся получить имя из Telegram
+        if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+            const user = window.Telegram.WebApp.initDataUnsafe.user;
+            return user.first_name || user.username || 'Игрок';
+        }
+        // Если нет Telegram, используем localStorage или имя по умолчанию
+        const savedName = localStorage.getItem('playerName');
+        return savedName || 'Игрок';
     }
 
     disconnect() {
