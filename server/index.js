@@ -28,7 +28,8 @@ wss.on('connection', (ws) => {
       console.log('📩 Получено:', data.type);
 
       if (data.type === 'host_create') {
-        const gameId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        // Генерируем 4-символьный код
+        const gameId = Math.random().toString(36).substring(2, 6).toUpperCase();
         
         games[gameId] = {
           host: ws,
@@ -48,6 +49,8 @@ wss.on('connection', (ws) => {
           gameId,
           side: data.side || 'white'
         }));
+        
+        console.log(`✅ Хост ${data.playerName} создал игру ${gameId} за ${data.side}`);
       }
       
       else if (data.type === 'guest_join') {

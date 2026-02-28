@@ -38,12 +38,12 @@
       <div class="section">
         <h3>👉 ГОСТЬ - присоединиться</h3>
         <input 
-          v-model="gameCode" 
-          placeholder="Введите код игры" 
-          class="input"
-          maxlength="6"
-          @keyup.enter="guestJoin"
-        >
+            v-model="gameCode" 
+            placeholder="Введите код игры (4 символа)" 
+            class="input"
+            maxlength="4"
+            @keyup.enter="guestJoin"
+            >
         <button @click="guestJoin" class="guest-btn" :disabled="!gameCode">
           Присоединиться
         </button>

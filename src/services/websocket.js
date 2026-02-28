@@ -141,14 +141,25 @@ class WebSocketManager {
     hostCreate(side) {
         const playerName = this.getTelegramName();
         this.myName = playerName;
+        console.log('📤 Отправка host_create:', { side, playerName });
         this.send('host_create', { side, playerName });
+        // gameId генерируется на сервере, нам не нужно его здесь создавать
     }
 
     guestJoin(gameId) {
         const playerName = this.getTelegramName();
         this.myName = playerName;
-        this.send('guest_join', { gameId: gameId.toUpperCase(), playerName });
-    }
+        // Проверяем длину кода
+        if (gameId.length !== 4) {
+            console.error('❌ Код игры должен быть 4 символа');
+            return;
+        }
+        console.log('📤 Отправка guest_join:', { gameId, playerName });
+        this.send('guest_join', { 
+            gameId: gameId.toUpperCase(), 
+            playerName 
+        });
+     }
 
     guestReady() {
         this.send('guest_ready', { gameId: this.gameId });

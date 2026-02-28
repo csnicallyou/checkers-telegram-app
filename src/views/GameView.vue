@@ -119,9 +119,10 @@ export default {
     });
 
     // Определяем, нужно ли переворачивать доску
+    // Определяем, нужно ли переворачивать доску
     const isFlipped = computed(() => {
       if (!props.multiplayerMode) return false;
-      console.log('🔄 Проверка переворота: myColor =', myColor.value);
+      console.log('🔄 Проверка переворота: myColor =', myColor.value, 'flipped =', myColor.value === 2);
       // Возвращаем true, если игрок за черных (myColor === 2)
       return myColor.value === 2;
     });
@@ -164,10 +165,14 @@ export default {
       };
     };
 
+    // Добавьте это в onMounted для отладки
     onMounted(() => {
       telegram.init();
       initGame();
       setupMultiplayerListeners();
+      
+      console.log('🎮 GameView mounted, myColor =', myColor.value);
+      console.log('🔄 isFlipped =', isFlipped.value);
       
       // Проверяем соединение с WebSocket
       if (!wsManager.ws || wsManager.ws.readyState !== WebSocket.OPEN) {
