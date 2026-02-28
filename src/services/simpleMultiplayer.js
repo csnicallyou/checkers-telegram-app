@@ -59,55 +59,65 @@ class SimpleMultiplayer {
     }
 
     handleMessage(data) {
-        switch (data.type) {
-            case 'connected':
-                this.playerId = data.clientId;
-                console.log('🆔 Client ID:', data.clientId);
-                break;
-                
-            case 'game_created':
-                this.gameId = data.gameId;
-                this.isHost = true;
-                this.playerSide = data.side || 'white';
-                if (this.onGameCreated) this.onGameCreated(data);
-                break;
-                
-            case 'game_joined':
-                this.gameId = data.gameId;
-                this.isHost = false;
-                this.opponent = { name: data.host.name };
-                this.playerSide = data.side || 'black';
-                if (this.onGameJoined) this.onGameJoined(data);
-                break;
-                
-            case 'player_joined':
-                this.opponent = { name: data.guest.name };
-                if (this.onPlayerJoined) this.onPlayerJoined(data);
-                break;
-                
-            case 'side_selected':
-                this.playerSide = data.side;
-                if (this.onSideSelected) this.onSideSelected(data.side);
-                break;
-                
-            case 'game_started':
-                if (this.onGameStarted) this.onGameStarted();
-                break;
-                
-            case 'opponent_move':
-                if (this.onOpponentMove) this.onOpponentMove(data);
-                break;
-                
-            case 'opponent_left':
-                this.opponent = null;
-                if (this.onOpponentLeft) this.onOpponentLeft();
-                break;
-                
-            case 'error':
-                if (this.onError) this.onError(data.message);
-                break;
-        }
+    console.log('📩 Received:', data.type, data);
+    
+    switch (data.type) {
+        case 'connected':
+            this.playerId = data.clientId;
+            console.log('🆔 Client ID:', data.clientId);
+            break;
+            
+        case 'game_created':
+            this.gameId = data.gameId;
+            this.isHost = true;
+            this.playerSide = data.side || 'white';
+            if (this.onGameCreated) this.onGameCreated(data);
+            break;
+            
+        case 'game_joined':
+            this.gameId = data.gameId;
+            this.isHost = false;
+            this.opponent = { name: data.host.name };
+            this.playerSide = data.side || 'black';
+            if (this.onGameJoined) this.onGameJoined(data);
+            break;
+            
+        case 'player_joined':
+            this.opponent = { name: data.guest.name };
+            if (this.onPlayerJoined) this.onPlayerJoined(data);
+            break;
+            
+        case 'side_selected':
+            this.playerSide = data.side;
+            if (this.onSideSelected) this.onSideSelected(data.side);
+            break;
+            
+        case 'game_started':
+            console.log('🎮 Game started event received!', data);
+            // Передаем данные о игре
+            if (this.onGameStarted) {
+                this.onGameStarted({
+                    gameId: data.gameId,
+                    host: data.host,
+                    guest: data.guest
+                });
+            }
+            break;
+            
+        case 'opponent_move':
+            if (this.onOpponentMove) this.onOpponentMove(data);
+            break;
+            
+        case 'opponent_left':
+            this.opponent = null;
+            if (this.onOpponentLeft) this.onOpponentLeft();
+            break;
+            
+        case 'error':
+            if (this.onError) this.onError(data.message);
+            break;
     }
+}
 
     async createGame(playerName, side = 'white') {
         this.playerName = playerName;

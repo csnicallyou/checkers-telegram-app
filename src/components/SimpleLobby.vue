@@ -180,13 +180,19 @@ export default {
           selectedSide.value = side;
         };
         
-        simpleMultiplayer.onGameStarted = () => {
-          emit('start-game', { 
-            id: gameId.value, 
-            isHost: isHost.value,
-            side: selectedSide.value 
-          });
-        };
+        simpleMultiplayer.onGameStarted = (data) => {
+            console.log('🎮 Получено событие game_started в лобби:', data);
+            
+            // Передаем все данные в GameView
+            emit('start-game', { 
+                id: gameId.value,
+                isHost: isHost.value,
+                side: selectedSide.value,
+                hostName: data.host?.name || (isHost.value ? playerName.value : opponent.value?.name),
+                guestName: data.guest?.name || (!isHost.value ? playerName.value : opponent.value?.name),
+                gameCode: gameId.value
+            });
+            };
         
         simpleMultiplayer.onError = (msg) => {
           error.value = msg;

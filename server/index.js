@@ -243,27 +243,62 @@ function handleSelectSide(clientId, gameId, side) {
 
 function handleStartGame(clientId, gameId) {
   const game = games.get(gameId);
-  if (!game) return;
+  if (!game) {
+    console.log(`❌ Игра ${gameId} не найдена`);
+    return;
+  }
   
   // Проверяем, что хост начинает игру
-  if (game.host.id !== clientId) return;
+  if (game.host.id !== clientId) {
+    console.log(`❌ Только хост может начать игру ${gameId}`);
+    return;
+  }
   
   // Проверяем, что есть гость
-  if (!game.guest) return;
+  if (!game.guest) {
+    console.log(`❌ Нет гостя в игре ${gameId}`);
+    return;
+  }
   
-  // Уведомляем всех игроков
+  console.log(`🎮 Игра ${gameId} начинается...`);
+  console.log(`   Хост: ${game.host.name} (${game.host.side})`);
+  console.log(`   Гость: ${game.guest.name} (${game.guest.side})`);
+  
+  // Отправляем уведомление всем игрокам в комнате
   const hostClient = clients.get(game.host.id);
   const guestClient = clients.get(game.guest.id);
   
   const startMessage = JSON.stringify({ 
     type: 'game_started', 
-    gameId 
+    gameId,
+    host: { name: game.host.name, side: game.host.side },
+    guest: { name: game.guest.name, side: game.guest.side }
   });
   
-  if (hostClient) hostClient.ws.send(startMessage);
-  if (guestClient) guestClient.ws.send(startMessage);
+  let hostSent = false;
+  let guestSent = false;
   
-  console.log(`🎮 Игра началась: ${gameId}`);
+  if (hostClient && hostClient.ws.readyState === WebSocket.OPEN) {
+    hostClient.ws.send(startMessage);
+    hostSent = true;
+    console.log(`✅ Уведомление отправлено хосту ${game.host.name}`);
+  } else {
+    console.log(`❌ Хост ${game.host.name} не в сети`);
+  }
+  
+  if (guestClient && guestClient.ws.readyState === WebSocket.OPEN) {
+    guestClient.ws.send(startMessage);
+    guestSent = true;
+    console.log(`✅ Уведомление отправлено гостю ${game.guest.name}`);
+  } else {
+    console.log(`❌ Гость ${game.guest.name} не в сети`);
+  }
+  
+  if (hostSent && guestSent) {
+    console.log(`🎉 Игра ${gameId} успешно запущена для обоих игроков`);
+  } else {
+    console.log(`⚠️ Игра ${gameId} запущена не полностью`);
+  }
 }
 
 function handleMakeMove(clientId, data) {

@@ -125,6 +125,7 @@ export default {
     });
 
     // Инициализация игры из пропсов
+    // Инициализация игры из пропсов
     const initGame = () => {
       console.log('🎮 GameView инициализация с props:', props.gameData);
       
@@ -136,6 +137,11 @@ export default {
       const { isHost, side, hostName, guestName } = props.gameData;
       
       console.log('📊 Данные игры:', { isHost, side, hostName, guestName });
+
+      if (!hostName && !guestName) {
+        console.log('⚠️ Неполные данные игры, ждем подключения...');
+        return;
+      }
 
       if (isHost) {
         // Хост играет выбранной стороной
