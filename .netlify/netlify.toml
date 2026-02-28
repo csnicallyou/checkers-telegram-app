@@ -1,0 +1,50 @@
+functionsDirectory = "C:\\Users\\csnicallyou\\Downloads\\checkers\\tgcheckers\\checkers-telegram-app\\netlify\\functions"
+functionsDirectoryOrigin = "config-v1"
+headersOrigin = "config"
+redirectsOrigin = "config"
+plugins = []
+
+[build]
+publish = "C:\\Users\\csnicallyou\\Downloads\\checkers\\tgcheckers\\checkers-telegram-app\\dist"
+publishOrigin = "config"
+commandOrigin = "config"
+command = "npm run build"
+functions = "C:\\Users\\csnicallyou\\Downloads\\checkers\\tgcheckers\\checkers-telegram-app\\netlify\\functions"
+
+[build.environment]
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[functions]
+
+[functions."*"]
+node_bundler = "esbuild"
+
+[[headers]]
+for = "/*"
+
+[headers.values]
+X-Frame-Options = "ALLOW-FROM https://telegram.org/"
+Content-Security-Policy = "frame-ancestors https://telegram.org;"
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]

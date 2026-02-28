@@ -1,0 +1,22 @@
+/* src/assets/mobile.css */
+@media (max-width: 480px) {
+  button {
+    min-height: 44px; /* Минимальный размер для касания */
+    font-size: 16px;
+  }
+  
+  input, select {
+    font-size: 16px;
+    min-height: 44px;
+  }
+  
+  /* Отключаем hover эффекты на мобильных */
+  .btn:hover {
+    transform: none;
+  }
+}
+
+/* Адаптация для Telegram Mini App */
+body[data-theme="dark"] {
+  color-scheme: dark;
+}
