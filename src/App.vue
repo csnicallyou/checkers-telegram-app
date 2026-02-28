@@ -7,7 +7,7 @@
           @select-mode="handleModeSelect"
         />
         
-        <ColyseusLobby  
+        <SimpleLobby  
           v-else-if="gameMode === 'multiplayer' && !gameStarted"
           @back-to-mode-selection="backToModeSelection"
           @game-created="handleGameCreated"
@@ -40,8 +40,8 @@ import { ref, defineAsyncComponent } from 'vue';
 const ModeSelection = defineAsyncComponent(() => 
   import('./components/ModeSelection.vue')
 );
-const ColyseusLobby = defineAsyncComponent(() => 
-  import('./components/ColyseusLobby.vue')
+const SimpleLobby = defineAsyncComponent(() => 
+  import('./components/SimpleLobby.vue')
 );
 const GameView = defineAsyncComponent(() => 
   import('./views/GameView.vue')
@@ -51,7 +51,7 @@ export default {
   name: 'App',
   components: {
     ModeSelection,
-    ColyseusLobby,
+    SimpleLobby,
     GameView
   },
   setup() {
