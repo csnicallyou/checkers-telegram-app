@@ -34,6 +34,7 @@
       :best-move="bestMove"
       :multiplayer-mode="multiplayerMode"
       :opponent="opponent"
+      :my-color="myColor"
       @new-game="newGame"
       @undo="undoMove"
       @hint="getHint"
@@ -72,7 +73,7 @@ import GameControls from '../components/GameControls.vue';
 import { GameLogic } from '../services/gameLogic';
 import { LocalAI } from '../services/localAI';
 import { telegram } from '../services/telegram';
-import { telegramMultiplayer } from '../services/telegramMultiplayer';
+import { simpleGame } from '../services/simpleGame';
 import { PLAYER_WHITE, PLAYER_BLACK } from '../utils/constants';
 
 export default {
@@ -109,22 +110,21 @@ export default {
     const opponentDisconnected = ref(false);
     
     // Данные мультиплеера
-    const playerColor = ref(1); // 1 - белые, 2 - черные
-    const playerSide = ref('white');
+    const myColor = ref(1); // 1 - белые, 2 - черные
+    const opponentColor = ref(2);
 
     // Определяем, чей сейчас ход
     const isMyTurn = computed(() => {
       if (!props.multiplayerMode) return true;
-      return currentPlayer.value === playerColor.value;
+      return currentPlayer.value === myColor.value;
     });
 
     // Определяем, нужно ли переворачивать доску
     const isFlipped = computed(() => {
       if (!props.multiplayerMode) return false;
-      return playerColor.value === 2;
+      return myColor.value === 2;
     });
 
-    // Инициализация игры из пропсов
     // Инициализация игры из пропсов
     const initGame = () => {
       console.log('🎮 GameView инициализация с props:', props.gameData);
@@ -134,36 +134,29 @@ export default {
         return;
       }
 
-      const { isHost, side, hostName, guestName } = props.gameData;
+      const { myColor: playerColor, opponentColor: oppColor } = props.gameData;
       
-      console.log('📊 Данные игры:', { isHost, side, hostName, guestName });
-
-      if (isHost) {
-        // Хост играет выбранной стороной
-        playerColor.value = side === 'white' ? 1 : 2;
-        opponent.value = { name: guestName || 'Соперник' };
-        console.log(`👑 Хост играет за ${side} (цвет ${playerColor.value})`);
-      } else {
-        // Гость получает сторону из gameData (она уже правильная)
-        playerColor.value = side === 'white' ? 1 : 2;
-        opponent.value = { name: hostName || 'Хост' };
-        console.log(`👤 Гость играет за ${side} (цвет ${playerColor.value})`);
-      }
-
-      currentPlayer.value = PLAYER_WHITE;
+      myColor.value = playerColor;
+      opponentColor.value = oppColor;
+      opponent.value = { name: myColor.value === 1 ? 'Черные' : 'Белые' };
       
       console.log('✅ Игра инициализирована:', {
-        playerColor: playerColor.value,
-        opponent: opponent.value?.name,
-        currentPlayer: currentPlayer.value
+        myColor: myColor.value,
+        opponentColor: opponentColor.value
       });
     };
 
-    // Настройка слушателей telegramMultiplayer
+    // Настройка слушателей simpleGame
     const setupMultiplayerListeners = () => {
       if (!props.multiplayerMode) return;
       
-      telegramMultiplayer.onOpponentMove = (data) => {
+      simpleGame.onGameStart = (data) => {
+        console.log('🎮 Игра началась:', data);
+        myColor.value = data.myColor;
+        opponentColor.value = data.opponentColor;
+      };
+      
+      simpleGame.onOpponentMove = (data) => {
         console.log('♟️ Ход соперника:', data);
         
         const { move, board: newBoard, currentPlayer: newPlayer } = data;
@@ -177,10 +170,16 @@ export default {
         telegram.vibrate('light');
       };
 
-      telegramMultiplayer.onOpponentLeft = () => {
-        console.log('👋 Соперник покинул игру');
+      simpleGame.onHostLeft = () => {
+        console.log('👋 Хост покинул игру');
         opponentDisconnected.value = true;
-        telegram.showAlert('Соперник покинул игру');
+        telegram.showAlert('Хост покинул игру');
+      };
+      
+      simpleGame.onGuestLeft = () => {
+        console.log('👋 Гость покинул игру');
+        opponentDisconnected.value = true;
+        telegram.showAlert('Гость покинул игру');
       };
     };
 
@@ -193,8 +192,10 @@ export default {
     });
 
     onUnmounted(() => {
-      telegramMultiplayer.onOpponentMove = null;
-      telegramMultiplayer.onOpponentLeft = null;
+      simpleGame.onGameStart = null;
+      simpleGame.onOpponentMove = null;
+      simpleGame.onHostLeft = null;
+      simpleGame.onGuestLeft = null;
     });
 
     const handleMove = async (move) => {
@@ -237,7 +238,7 @@ export default {
         gameOver.value = status;
         
         if (props.multiplayerMode) {
-          telegramMultiplayer.leaveGame();
+          simpleGame.disconnect();
         }
         
         telegram.showAlert(`Игра окончена! Победили ${status === PLAYER_WHITE ? 'белые' : 'черные'}`);
@@ -258,7 +259,7 @@ export default {
           currentCaptureChain.value = [endRow, endCol];
           
           if (props.multiplayerMode) {
-            telegramMultiplayer.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
+            simpleGame.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
           }
           
           telegram.showNotification('Можете продолжать бой!');
@@ -271,7 +272,7 @@ export default {
       currentPlayer.value = currentPlayer.value === PLAYER_WHITE ? PLAYER_BLACK : PLAYER_WHITE;
       
       if (props.multiplayerMode) {
-        telegramMultiplayer.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
+        simpleGame.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
       }
       
       if (!GameLogic.hasMoves(board.value, currentPlayer.value)) {
@@ -279,7 +280,7 @@ export default {
         gameOver.value = winner;
         
         if (props.multiplayerMode) {
-          telegramMultiplayer.leaveGame();
+          simpleGame.disconnect();
         }
         
         telegram.showAlert(`Игра окончена! У игрока нет ходов. Победили ${winner === PLAYER_WHITE ? 'белые' : 'черные'}`);
@@ -357,7 +358,7 @@ export default {
 
     const goBack = () => {
       if (props.multiplayerMode) {
-        telegramMultiplayer.leaveGame();
+        simpleGame.disconnect();
       }
       emit('back-to-menu');
     };
@@ -376,6 +377,7 @@ export default {
       opponentDisconnected,
       isMyTurn,
       isFlipped,
+      myColor,
       handleMove,
       handlePieceSelected,
       newGame,

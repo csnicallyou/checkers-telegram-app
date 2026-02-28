@@ -4,6 +4,21 @@
       <div class="player-turn" :class="{ 'white-turn': currentPlayer === 1, 'black-turn': currentPlayer === 2 }">
         {{ currentPlayer === 1 ? 'Ход белых' : 'Ход черных' }}
       </div>
+      
+      <!-- Информация о сторонах в мультиплеере -->
+      <div v-if="multiplayerMode" class="sides-info">
+        <div class="side-badge" :class="{ 'active': myColor === 1 }">
+          <span class="side-icon">⚪</span>
+          <span class="side-text">Белые</span>
+          <span v-if="myColor === 1" class="you-badge">(Вы)</span>
+        </div>
+        <div class="vs-small">VS</div>
+        <div class="side-badge" :class="{ 'active': myColor === 2 }">
+          <span class="side-icon">⚫</span>
+          <span class="side-text">Черные</span>
+          <span v-if="myColor === 2" class="you-badge">(Вы)</span>
+        </div>
+      </div>
     </div>
     
     <div class="game-buttons">
@@ -48,14 +63,42 @@
 export default {
   name: 'GameControls',
   props: {
-    currentPlayer: Number,
-    difficulty: String,
-    showHints: Boolean,
-    canUndo: Boolean,
-    isGettingHint: Boolean,
-    bestMove: Array,
-    multiplayerMode: Boolean,
-    opponent: Object
+    currentPlayer: {
+      type: Number,
+      required: true
+    },
+    difficulty: {
+      type: String,
+      default: 'champion'
+    },
+    showHints: {
+      type: Boolean,
+      default: false
+    },
+    canUndo: {
+      type: Boolean,
+      default: false
+    },
+    isGettingHint: {
+      type: Boolean,
+      default: false
+    },
+    bestMove: {
+      type: Array,
+      default: null
+    },
+    multiplayerMode: {
+      type: Boolean,
+      default: false
+    },
+    opponent: {
+      type: Object,
+      default: null
+    },
+    myColor: {
+      type: Number,
+      default: 1 // 1 - белые, 2 - черные
+    }
   },
   emits: ['update:difficulty', 'update:showHints', 'new-game', 'undo', 'hint', 'back-to-menu']
 };
@@ -83,6 +126,7 @@ export default {
   padding: 12px;
   border-radius: 8px;
   transition: all 0.3s;
+  margin-bottom: 10px;
 }
 
 .player-turn.white-turn {
@@ -95,6 +139,56 @@ export default {
   color: #333;
   background: #f0f0f0;
   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Стили для отображения сторон */
+.sides-info {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-top: 10px;
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 8px;
+}
+
+.side-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: white;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.side-badge.active {
+  border-color: #4CAF50;
+  background: #e8f5e9;
+  transform: scale(1.05);
+}
+
+.side-icon {
+  font-size: 18px;
+}
+
+.side-text {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.you-badge {
+  font-size: 12px;
+  color: #4CAF50;
+  font-weight: bold;
+}
+
+.vs-small {
+  font-size: 14px;
+  font-weight: bold;
+  color: #666;
 }
 
 .game-buttons {
@@ -219,6 +313,23 @@ export default {
   .player-turn {
     font-size: 20px;
     padding: 10px;
+  }
+  
+  .sides-info {
+    gap: 8px;
+    padding: 5px;
+  }
+  
+  .side-badge {
+    padding: 4px 8px;
+  }
+  
+  .side-icon {
+    font-size: 16px;
+  }
+  
+  .side-text {
+    font-size: 12px;
   }
 }
 </style>
