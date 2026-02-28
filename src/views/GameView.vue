@@ -49,7 +49,6 @@
       </div>
     </div>
     
-    <!-- Исправленный overlay для подсказки -->
     <div v-if="isGettingHint" class="hint-overlay">
       <div class="hint-content">
         <div class="spinner"></div>
@@ -73,7 +72,7 @@ import GameControls from '../components/GameControls.vue';
 import { GameLogic } from '../services/gameLogic';
 import { LocalAI } from '../services/localAI';
 import { telegram } from '../services/telegram';
-import { multiplayer } from '../services/multiplayer';
+import { simpleMultiplayer } from '../services/simpleMultiplayer';
 import { PLAYER_WHITE, PLAYER_BLACK } from '../utils/constants';
 
 export default {
@@ -108,82 +107,84 @@ export default {
     const currentCaptureChain = ref(null);
     const opponent = ref(null);
     const opponentDisconnected = ref(false);
+    
+    // Данные мультиплеера
+    const playerColor = ref(1); // 1 - белые, 2 - черные
 
     // Определяем, чей сейчас ход в мультиплеере
     const isMyTurn = computed(() => {
       if (!props.multiplayerMode) return true;
-      return currentPlayer.value === multiplayer.playerColor;
+      return currentPlayer.value === playerColor.value;
     });
 
     // Определяем, нужно ли переворачивать доску
     const isFlipped = computed(() => {
         if (!props.multiplayerMode) return false;
         // Если игрок за черных (color 2), переворачиваем доску
-        return multiplayer.playerColor === 2;
+        return playerColor.value === 2;
     });
 
-    // Обработка входящих сообщений для мультиплеера
-    const handleTelegramMessage = (data) => {
-      if (props.multiplayerMode) {
-        multiplayer.handleMessage(data);
+    // Инициализация мультиплеера из gameData
+    const initMultiplayer = () => {
+      if (props.multiplayerMode && props.gameData) {
+        // Определяем цвет игрока из стороны
+        if (props.gameData.side === 'white') {
+          playerColor.value = 1;
+        } else if (props.gameData.side === 'black') {
+          playerColor.value = 2;
+        }
+        
+        // Устанавливаем соперника
+        if (props.gameData.isHost) {
+          opponent.value = { name: 'Соперник' };
+        } else if (props.gameData.host) {
+          opponent.value = { name: props.gameData.host.name };
+        }
+        
+        console.log('🎨 Мультиплеер инициализирован:', {
+          playerColor: playerColor.value,
+          opponent: opponent.value
+        });
       }
     };
 
-    // Подписка на события мультиплеера
-    const setupMultiplayer = () => {
-      if (props.multiplayerMode && props.gameData) {
-        multiplayer.gameState = props.gameData;
-        multiplayer.playerColor = props.gameData.host?.id === telegram.getUser()?.id ? 1 : 2;
-        opponent.value = props.gameData.host?.id === telegram.getUser()?.id 
-          ? props.gameData.guest 
-          : props.gameData.host;
-
-        multiplayer.onGameUpdate = ({ move, board: newBoard, currentPlayer: newPlayer }) => {
+    // Настройка слушателей simpleMultiplayer
+    const setupMultiplayerListeners = () => {
+      if (!props.multiplayerMode) return;
+      
+      simpleMultiplayer.onOpponentMove = (data) => {
+        console.log('♟️ Ход соперника:', data);
+        
+        // Применяем ход к доске
+        const { move, board: newBoard, currentPlayer: newPlayer } = data;
+        
+        if (newBoard) {
           board.value = newBoard;
           currentPlayer.value = newPlayer;
           lastMove.value = [[move[0], move[1]], [move[2], move[3]]];
-          telegram.vibrate('light');
-        };
+        }
+        
+        telegram.vibrate('light');
+      };
 
-        multiplayer.onPlayerJoined = (player) => {
-          opponent.value = player;
-          telegram.showNotification(`${player.name} присоединился к игре!`);
-        };
-
-        multiplayer.onGameEnd = (winner) => {
-          gameOver.value = winner;
-          telegram.showAlert(`Игра окончена! Победили ${winner === 1 ? 'белые' : 'черные'}`);
-        };
-      }
-    };
-
-    
-
-    // Отписка от событий
-    const cleanupMultiplayer = () => {
-      if (props.multiplayerMode) {
-        multiplayer.onGameUpdate = null;
-        multiplayer.onPlayerJoined = null;
-        multiplayer.onGameEnd = null;
-      }
+      simpleMultiplayer.onOpponentLeft = () => {
+        opponentDisconnected.value = true;
+        telegram.showAlert('Соперник покинул игру');
+      };
     };
 
     onMounted(() => {
       telegram.init();
-      setupMultiplayer();
-      
-      if (telegram.webApp && props.multiplayerMode) {
-        telegram.webApp.onEvent('message', handleTelegramMessage);
-      }
+      initMultiplayer();
+      setupMultiplayerListeners();
       
       console.log('Игра запущена в режиме:', props.mode);
     });
 
     onUnmounted(() => {
-      cleanupMultiplayer();
-      if (telegram.webApp && props.multiplayerMode) {
-        telegram.webApp.offEvent('message', handleTelegramMessage);
-      }
+      // Очищаем слушатели
+      simpleMultiplayer.onOpponentMove = null;
+      simpleMultiplayer.onOpponentLeft = null;
     });
 
     const handleMove = async (move) => {
@@ -232,7 +233,7 @@ export default {
         gameOver.value = status;
         
         if (props.multiplayerMode) {
-          multiplayer.endGame(status);
+          simpleMultiplayer.leaveGame();
         }
         
         telegram.showAlert(`Игра окончена! Победили ${status === PLAYER_WHITE ? 'белые' : 'черные'}`);
@@ -254,7 +255,7 @@ export default {
           currentCaptureChain.value = [endRow, endCol];
           
           if (props.multiplayerMode) {
-            multiplayer.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
+            simpleMultiplayer.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
           }
           
           telegram.showNotification('Можете продолжать бой!');
@@ -268,7 +269,7 @@ export default {
       currentPlayer.value = currentPlayer.value === PLAYER_WHITE ? PLAYER_BLACK : PLAYER_WHITE;
       
       if (props.multiplayerMode) {
-        multiplayer.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
+        simpleMultiplayer.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
       }
       
       // Проверяем наличие ходов у следующего игрока
@@ -277,7 +278,7 @@ export default {
         gameOver.value = winner;
         
         if (props.multiplayerMode) {
-          multiplayer.endGame(winner);
+          simpleMultiplayer.leaveGame();
         }
         
         telegram.showAlert(`Игра окончена! У игрока нет ходов. Победили ${winner === PLAYER_WHITE ? 'белые' : 'черные'}`);
@@ -311,7 +312,6 @@ export default {
       bestMove.value = null;
     };
 
-    // ИСПРАВЛЕННЫЙ МЕТОД getHint
     const getHint = () => {
       // Не показываем подсказки в мультиплеере
       if (props.multiplayerMode) {
@@ -335,7 +335,6 @@ export default {
       isGettingHint.value = true;
       bestMove.value = null;
       
-      // Используем setTimeout, чтобы не блокировать интерфейс
       setTimeout(() => {
         try {
           console.log('Вычисляем подсказку...');
@@ -345,7 +344,6 @@ export default {
             console.log('Подсказка получена:', hint);
             bestMove.value = hint;
             
-            // Показываем уведомление с координатами
             const [startRow, startCol, endRow, endCol] = hint;
             telegram.showNotification(
               `Подсказка: с (${startRow+1},${startCol+1}) на (${endRow+1},${endCol+1})`
@@ -358,11 +356,10 @@ export default {
           console.error('Ошибка при получении подсказки:', error);
           telegram.showAlert('Ошибка при получении подсказки');
         } finally {
-          // ВАЖНО: всегда скрываем overlay, даже при ошибке
           console.log('Скрываем overlay подсказки');
           isGettingHint.value = false;
         }
-      }, 100); // Небольшая задержка для плавности
+      }, 100);
     };
 
     const handlePieceSelected = ({ row, col, moves }) => {
@@ -372,7 +369,7 @@ export default {
 
     const goBack = () => {
       if (props.multiplayerMode) {
-        multiplayer.endGame(null);
+        simpleMultiplayer.leaveGame();
       }
       emit('back-to-menu');
     };
@@ -390,6 +387,7 @@ export default {
       opponent,
       opponentDisconnected,
       isMyTurn,
+      isFlipped,
       handleMove,
       handlePieceSelected,
       newGame,
@@ -498,7 +496,6 @@ export default {
   justify-content: center;
 }
 
-/* Исправленный overlay для подсказки */
 .hint-overlay {
   position: fixed;
   top: 0;
@@ -510,7 +507,7 @@ export default {
   justify-content: center;
   align-items: center;
   z-index: 2000;
-  pointer-events: none; /* Позволяет кликать сквозь overlay */
+  pointer-events: none;
 }
 
 .hint-content {
@@ -519,7 +516,7 @@ export default {
   border-radius: 10px;
   text-align: center;
   min-width: 200px;
-  pointer-events: auto; /* Но сам контент можно трогать */
+  pointer-events: auto;
   box-shadow: 0 5px 15px rgba(0,0,0,0.3);
 }
 
