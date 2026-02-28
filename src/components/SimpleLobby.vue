@@ -111,7 +111,7 @@
 
 <script>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { simpleGame } from '../services/simpleGame';
+import { wsManager } from '../services/websocket';
 import { telegram } from '../services/telegram';
 
 export default {
@@ -143,17 +143,17 @@ export default {
       telegram.init();
       
       try {
-        await simpleGame.connect();
+        await wsManager.connect();
         connected.value = true;
         
-        simpleGame.onHostCreated = (data) => {
+        wsManager.callbacks.onHostCreated = (data) => {
           gameId.value = data.gameId;
           isHost.value = true;
           hostSide.value = data.side;
           emit('game-created', { id: data.gameId });
         };
         
-        simpleGame.onGuestJoined = (data) => {
+        wsManager.callbacks.onGuestJoined = (data) => {
           if (isHost.value) {
             guestName.value = data.guestName;
             guestSide.value = data.guestSide;
@@ -166,11 +166,11 @@ export default {
           }
         };
         
-        simpleGame.onGuestReady = () => {
+        wsManager.callbacks.onGuestReady = () => {
           guestReady.value = true;
         };
         
-        simpleGame.onGameStart = (data) => {
+        wsManager.callbacks.onGameStart = (data) => {
           emit('start-game', {
             myColor: data.myColor,
             opponentColor: data.opponentColor,
@@ -178,7 +178,7 @@ export default {
           });
         };
         
-        simpleGame.onError = (msg) => {
+        wsManager.callbacks.onError = (msg) => {
           error.value = msg;
         };
         
@@ -188,25 +188,30 @@ export default {
     });
 
     onUnmounted(() => {
-      simpleGame.disconnect();
+      // Очищаем только колбэки, но соединение не закрываем!
+      wsManager.callbacks.onHostCreated = null;
+      wsManager.callbacks.onGuestJoined = null;
+      wsManager.callbacks.onGuestReady = null;
+      wsManager.callbacks.onGameStart = null;
+      wsManager.callbacks.onError = null;
     });
 
     const hostCreate = () => {
-      simpleGame.hostCreate(hostSide.value);
+      wsManager.hostCreate(hostSide.value);
     };
 
     const guestJoin = () => {
       if (!gameCode.value) return;
-      simpleGame.guestJoin(gameCode.value);
+      wsManager.guestJoin(gameCode.value);
     };
 
     const guestSetReady = () => {
       guestReady.value = true;
-      simpleGame.guestReady();
+      wsManager.guestReady();
     };
 
     const hostStartGame = () => {
-      simpleGame.hostStart();
+      wsManager.hostStart();
     };
 
     const copyCode = () => {
@@ -214,7 +219,7 @@ export default {
     };
 
     const goBack = () => {
-      simpleGame.disconnect();
+      // Не закрываем соединение, просто выходим из лобби
       emit('back');
     };
 

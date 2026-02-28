@@ -73,7 +73,7 @@ import GameControls from '../components/GameControls.vue';
 import { GameLogic } from '../services/gameLogic';
 import { LocalAI } from '../services/localAI';
 import { telegram } from '../services/telegram';
-import { simpleGame } from '../services/simpleGame';
+import { wsManager } from '../services/websocket';
 import { PLAYER_WHITE, PLAYER_BLACK } from '../utils/constants';
 
 export default {
@@ -133,12 +133,14 @@ export default {
       myColor.value = playerColor;
       opponentColor.value = oppColor;
       opponent.value = { name: opponentName || 'Соперник' };
+      gameId.value = props.gameData.gameId || wsManager.gameId;
     };
 
     const setupMultiplayerListeners = () => {
       if (!props.multiplayerMode) return;
       
-      simpleGame.onOpponentMove = (data) => {
+      wsManager.callbacks.onOpponentMove = (data) => {
+        console.log('♟️ Получен ход соперника:', data);
         const { move, board: newBoard, currentPlayer: newPlayer } = data;
         board.value = newBoard;
         currentPlayer.value = newPlayer;
@@ -146,12 +148,14 @@ export default {
         telegram.vibrate('light');
       };
 
-      simpleGame.onHostLeft = () => {
+      wsManager.callbacks.onHostLeft = () => {
+        console.log('👋 Хост покинул игру');
         opponentDisconnected.value = true;
         telegram.showAlert('Хост покинул игру');
       };
       
-      simpleGame.onGuestLeft = () => {
+      wsManager.callbacks.onGuestLeft = () => {
+        console.log('👋 Гость покинул игру');
         opponentDisconnected.value = true;
         telegram.showAlert('Гость покинул игру');
       };
@@ -162,17 +166,11 @@ export default {
       initGame();
       setupMultiplayerListeners();
       
-      // ВАЖНО: проверяем и восстанавливаем соединение
-      if (!simpleGame.connected || !simpleGame.ws || simpleGame.ws.readyState !== WebSocket.OPEN) {
-        console.log('🔄 WebSocket не подключен, переподключаемся...');
-        simpleGame.connect().then(() => {
-          console.log('✅ WebSocket переподключен');
-          // После переподключения восстанавливаем gameId
-          if (simpleGame.gameId !== gameId.value) {
-            simpleGame.gameId = gameId.value;
-          }
-        }).catch(err => {
-          console.error('❌ Ошибка переподключения:', err);
+      // Проверяем соединение с WebSocket
+      if (!wsManager.ws || wsManager.ws.readyState !== WebSocket.OPEN) {
+        console.log('🔄 WebSocket не подключен, подключаемся...');
+        wsManager.connect().catch(err => {
+          console.error('❌ Ошибка подключения:', err);
         });
       } else {
         console.log('✅ WebSocket уже подключен');
@@ -182,9 +180,10 @@ export default {
     });
 
     onUnmounted(() => {
-      simpleGame.onOpponentMove = null;
-      simpleGame.onHostLeft = null;
-      simpleGame.onGuestLeft = null;
+      // Очищаем только колбэки, соединение оставляем
+      wsManager.callbacks.onOpponentMove = null;
+      wsManager.callbacks.onHostLeft = null;
+      wsManager.callbacks.onGuestLeft = null;
     });
 
     const handleMove = async (move) => {
@@ -225,7 +224,7 @@ export default {
       const status = GameLogic.getGameStatus(board.value);
       if (status) {
         gameOver.value = status;
-        if (props.multiplayerMode) simpleGame.disconnect();
+        if (props.multiplayerMode) wsManager.disconnect();
         telegram.showAlert(`Игра окончена! Победили ${status === PLAYER_WHITE ? 'белые' : 'черные'}`);
         return;
       }
@@ -239,7 +238,7 @@ export default {
           justPromoted.value = promoted;
           currentCaptureChain.value = [endRow, endCol];
           if (props.multiplayerMode) {
-            simpleGame.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
+            wsManager.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
           }
           telegram.showNotification('Можете продолжать бой!');
           return;
@@ -251,13 +250,13 @@ export default {
       currentPlayer.value = currentPlayer.value === PLAYER_WHITE ? PLAYER_BLACK : PLAYER_WHITE;
       
       if (props.multiplayerMode) {
-        simpleGame.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
+        wsManager.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
       }
       
       if (!GameLogic.hasMoves(board.value, currentPlayer.value)) {
         const winner = currentPlayer.value === PLAYER_WHITE ? PLAYER_BLACK : PLAYER_WHITE;
         gameOver.value = winner;
-        if (props.multiplayerMode) simpleGame.disconnect();
+        if (props.multiplayerMode) wsManager.disconnect();
         telegram.showAlert(`Игра окончена! Победили ${winner === PLAYER_WHITE ? 'белые' : 'черные'}`);
         return;
       }
@@ -320,7 +319,7 @@ export default {
     };
 
     const goBack = () => {
-      if (props.multiplayerMode) simpleGame.disconnect();
+      // Не закрываем соединение при возврате в меню
       emit('back-to-menu');
     };
 

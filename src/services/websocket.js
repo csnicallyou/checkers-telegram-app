@@ -1,4 +1,5 @@
-class SimpleGame {
+// Глобальный WebSocket менеджер
+class WebSocketManager {
     constructor() {
         this.ws = null;
         this.gameId = null;
@@ -12,23 +13,32 @@ class SimpleGame {
         
         this.serverUrl = import.meta.env.VITE_SERVER_URL || 'wss://checkers-server-0y7z.onrender.com';
         
-        this.onHostCreated = null;
-        this.onGuestJoined = null;
-        this.onGuestReady = null;
-        this.onGameStart = null;
-        this.onOpponentMove = null;
-        this.onHostLeft = null;
-        this.onGuestLeft = null;
-        this.onError = null;
+        this.callbacks = {
+            onHostCreated: null,
+            onGuestJoined: null,
+            onGuestReady: null,
+            onGameStart: null,
+            onOpponentMove: null,
+            onHostLeft: null,
+            onGuestLeft: null,
+            onError: null
+        };
     }
 
     connect() {
         return new Promise((resolve, reject) => {
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                console.log('✅ WebSocket уже подключен');
+                resolve();
+                return;
+            }
+
+            console.log('🔄 Подключение к серверу...');
             this.ws = new WebSocket(this.serverUrl);
             
             this.ws.onopen = () => {
-                this.connected = true;
                 console.log('✅ WebSocket connected');
+                this.connected = true;
                 resolve();
             };
             
@@ -40,6 +50,14 @@ class SimpleGame {
             this.ws.onclose = () => {
                 console.log('🔴 WebSocket closed');
                 this.connected = false;
+                
+                // Пытаемся переподключиться через 1 секунду
+                setTimeout(() => {
+                    if (!this.connected) {
+                        console.log('🔄 Автоматическое переподключение...');
+                        this.connect().catch(() => {});
+                    }
+                }, 1000);
             };
             
             this.ws.onmessage = (e) => {
@@ -52,13 +70,13 @@ class SimpleGame {
                         this.mySide = data.side;
                         this.myColor = data.side === 'white' ? 1 : 2;
                         this.isHost = true;
-                        if (this.onHostCreated) this.onHostCreated(data);
+                        if (this.callbacks.onHostCreated) this.callbacks.onHostCreated(data);
                         break;
                         
                     case 'guest_joined':
                         if (this.isHost) {
-                            if (this.onGuestJoined) {
-                                this.onGuestJoined({
+                            if (this.callbacks.onGuestJoined) {
+                                this.callbacks.onGuestJoined({
                                     guestName: data.guestName,
                                     guestSide: data.guestSide
                                 });
@@ -71,8 +89,8 @@ class SimpleGame {
                             this.opponentName = data.hostName;
                             this.opponentColor = data.hostSide === 'white' ? 1 : 2;
                             this.isHost = false;
-                            if (this.onGuestJoined) {
-                                this.onGuestJoined({
+                            if (this.callbacks.onGuestJoined) {
+                                this.callbacks.onGuestJoined({
                                     gameId: data.gameId,
                                     mySide: data.mySide,
                                     hostName: data.hostName,
@@ -83,20 +101,19 @@ class SimpleGame {
                         break;
                         
                     case 'guest_ready':
-                        if (this.onGuestReady) this.onGuestReady();
+                        if (this.callbacks.onGuestReady) this.callbacks.onGuestReady();
                         break;
                         
                     case 'game_start':
                         this.myColor = data.myColor;
                         this.opponentName = data.opponentName;
                         this.opponentColor = data.opponentColor;
-                        if (this.onGameStart) this.onGameStart(data);
+                        if (this.callbacks.onGameStart) this.callbacks.onGameStart(data);
                         break;
                         
                     case 'opponent_move':
-                        console.log('📩 Получен ход соперника:', data);
-                        if (this.onOpponentMove) {
-                            this.onOpponentMove({
+                        if (this.callbacks.onOpponentMove) {
+                            this.callbacks.onOpponentMove({
                                 move: data.move,
                                 board: data.board,
                                 currentPlayer: data.currentPlayer
@@ -105,108 +122,57 @@ class SimpleGame {
                         break;
                         
                     case 'host_left':
-                        if (this.onHostLeft) this.onHostLeft();
+                        if (this.callbacks.onHostLeft) this.callbacks.onHostLeft();
                         break;
                         
                     case 'guest_left':
-                        if (this.onGuestLeft) this.onGuestLeft();
+                        if (this.callbacks.onGuestLeft) this.callbacks.onGuestLeft();
                         break;
                         
                     case 'error':
-                        if (this.onError) this.onError(data.message);
+                        if (this.callbacks.onError) this.callbacks.onError(data.message);
                         break;
                 }
             };
         });
     }
 
-    // НОВЫЙ МЕТОД: проверка и восстановление соединения
-    async ensureConnection() {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            console.log('✅ Соединение уже открыто');
-            return true;
-        }
-        
-        console.log('🔄 Переподключение к серверу...');
-        try {
-            await this.connect();
-            console.log('✅ Переподключено успешно');
-            return true;
-        } catch (err) {
-            console.error('❌ Ошибка переподключения:', err);
-            return false;
-        }
-    }
-
+    // Методы для отправки
     hostCreate(side) {
         const playerName = this.getTelegramName();
         this.myName = playerName;
-        console.log('📤 Отправка host_create:', { side, playerName });
-        this.ws.send(JSON.stringify({ 
-            type: 'host_create', 
-            side,
-            playerName 
-        }));
+        this.send('host_create', { side, playerName });
     }
 
     guestJoin(gameId) {
         const playerName = this.getTelegramName();
         this.myName = playerName;
-        console.log('📤 Отправка guest_join:', { gameId, playerName });
-        this.ws.send(JSON.stringify({ 
-            type: 'guest_join', 
-            gameId: gameId.toUpperCase(),
-            playerName 
-        }));
+        this.send('guest_join', { gameId: gameId.toUpperCase(), playerName });
     }
 
     guestReady() {
-        console.log('📤 Отправка guest_ready:', { gameId: this.gameId });
-        this.ws.send(JSON.stringify({ 
-            type: 'guest_ready', 
-            gameId: this.gameId 
-        }));
+        this.send('guest_ready', { gameId: this.gameId });
     }
 
     hostStart() {
-        console.log('🎮 Хост начинает игру:', this.gameId);
-        this.ws.send(JSON.stringify({ 
-            type: 'host_start', 
-            gameId: this.gameId 
-        }));
+        this.send('host_start', { gameId: this.gameId });
     }
 
-    // ИСПРАВЛЕННЫЙ МЕТОД: sendMove с проверкой соединения
     sendMove(move, board, currentPlayer) {
-        console.log('📤 Отправка хода:', { move, currentPlayer });
-        
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            console.log('🔄 Сокет закрыт, пытаемся переподключиться перед отправкой');
-            this.ensureConnection().then(connected => {
-                if (connected) {
-                    console.log('✅ Переподключено, отправляем ход');
-                    // Пробуем отправить снова
-                    this.ws.send(JSON.stringify({
-                        type: 'move',
-                        gameId: this.gameId,
-                        move,
-                        board,
-                        currentPlayer
-                    }));
-                } else {
-                    console.error('❌ Не удалось переподключиться, ход не отправлен');
-                }
-            });
-            return;
-        }
-        
-        this.ws.send(JSON.stringify({
-            type: 'move',
+        this.send('move', {
             gameId: this.gameId,
             move,
             board,
             currentPlayer
-        }));
+        });
+    }
+
+    send(type, data) {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            console.error('❌ WebSocket не подключен');
+            return;
+        }
+        this.ws.send(JSON.stringify({ type, ...data }));
     }
 
     getTelegramName() {
@@ -214,8 +180,7 @@ class SimpleGame {
             const user = window.Telegram.WebApp.initDataUnsafe.user;
             return user.first_name || user.username || 'Игрок';
         }
-        const savedName = localStorage.getItem('playerName');
-        return savedName || 'Игрок';
+        return localStorage.getItem('playerName') || 'Игрок';
     }
 
     disconnect() {
@@ -223,4 +188,5 @@ class SimpleGame {
     }
 }
 
-export const simpleGame = new SimpleGame();
+// Создаем ОДИН глобальный экземпляр
+export const wsManager = new WebSocketManager();
