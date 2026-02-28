@@ -118,8 +118,11 @@ export default {
       return currentPlayer.value === myColor.value;
     });
 
+    // Определяем, нужно ли переворачивать доску
     const isFlipped = computed(() => {
       if (!props.multiplayerMode) return false;
+      console.log('🔄 Проверка переворота: myColor =', myColor.value);
+      // Возвращаем true, если игрок за черных (myColor === 2)
       return myColor.value === 2;
     });
 

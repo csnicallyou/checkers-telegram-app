@@ -183,6 +183,7 @@ export default {
   font-size: 12px;
   color: #4CAF50;
   font-weight: bold;
+  margin-left: 2px;
 }
 
 .vs-small {
