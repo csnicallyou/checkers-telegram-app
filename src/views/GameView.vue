@@ -73,7 +73,7 @@ import GameControls from '../components/GameControls.vue';
 import { GameLogic } from '../services/gameLogic';
 import { LocalAI } from '../services/localAI';
 import { telegram } from '../services/telegram';
-import { simpleGame } from '../services/simpleGame'; 
+import { simpleGame } from '../services/simpleGame';
 import { PLAYER_WHITE, PLAYER_BLACK } from '../utils/constants';
 
 export default {
@@ -95,7 +95,6 @@ export default {
   },
   emits: ['back-to-menu', 'back-to-lobby'],
   setup(props, { emit }) {
-    console.log('🎮 GameView загружен, props:', props);
     const board = ref(GameLogic.initializeBoard());
     const currentPlayer = ref(PLAYER_WHITE);
     const moveHistory = ref([]);
@@ -110,7 +109,7 @@ export default {
     const opponent = ref(null);
     const opponentDisconnected = ref(false);
     
-    // Данные мультиплеера
+    // Данные мультиплеера - ЭТО REF-ПЕРЕМЕННЫЕ!
     const myColor = ref(1); // 1 - белые, 2 - черные
     const opponentColor = ref(2);
 
@@ -127,39 +126,33 @@ export default {
     });
 
     // Инициализация игры из пропсов
-    // Инициализация игры из пропсов
-    // Инициализация игры из пропсов
     const initGame = () => {
-        console.log('🎮 GameView initGame вызван');
-        console.log('📦 props.gameData:', props.gameData);
-        console.log('🎮 multiplayerMode:', props.multiplayerMode);
-        
-        if (!props.multiplayerMode) {
-            console.log('❌ Не мультиплеер режим');
-            return;
-        }
-        
-        if (!props.gameData) {
-            console.log('❌ Нет gameData');
-            return;
-        }
+      console.log('🎮 GameView initGame вызван');
+      console.log('📦 props.gameData:', props.gameData);
+      
+      if (!props.multiplayerMode || !props.gameData) {
+        console.log('❌ Нет данных мультиплеера');
+        return;
+      }
 
-        const { myColor, opponentColor, opponentName } = props.gameData;
-        console.log('📊 Данные из gameData:', { myColor, opponentColor, opponentName });
-        
-        if (!myColor || !opponentColor) {
-            console.log('❌ Нет данных о цветах');
-            return;
-        }
-        
-        myColor.value = myColor;
-        opponentColor.value = opponentColor;
-        opponent.value = { name: opponentName || 'Соперник' };
-        
-        console.log('✅ Игра инициализирована:', {
-            myColor: myColor.value,
-            opponent: opponent.value
-        });
+      const { myColor: playerColor, opponentColor: oppColor, opponentName } = props.gameData;
+      console.log('📊 Данные из gameData:', { playerColor, oppColor, opponentName });
+      
+      if (playerColor === undefined || oppColor === undefined) {
+        console.log('❌ Нет данных о цветах');
+        return;
+      }
+      
+      // ПРИСВАИВАЕМ ЗНАЧЕНИЯ REF-ПЕРЕМЕННЫМ
+      myColor.value = playerColor;
+      opponentColor.value = oppColor;
+      opponent.value = { name: opponentName || 'Соперник' };
+      
+      console.log('✅ Игра инициализирована:', {
+        myColor: myColor.value,
+        opponentColor: opponentColor.value,
+        opponent: opponent.value
+      });
     };
 
     // Настройка слушателей simpleGame
@@ -167,9 +160,8 @@ export default {
       if (!props.multiplayerMode) return;
       
       simpleGame.onGameStart = (data) => {
-        console.log('🎮 Игра началась:', data);
-        myColor.value = data.myColor;
-        opponentColor.value = data.opponentColor;
+        console.log('🎮 simpleGame.onGameStart получен в GameView:', data);
+        // Здесь не нужно ничего делать, данные уже пришли через props
       };
       
       simpleGame.onOpponentMove = (data) => {
@@ -406,7 +398,6 @@ export default {
 </script>
 
 <style scoped>
-/* Стили остаются без изменений */
 .game-view {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
