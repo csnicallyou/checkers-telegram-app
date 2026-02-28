@@ -25,6 +25,14 @@ class TelegramService {
     }
   }
 
+  vibrate(style = 'light') {
+    console.log('📳 Вибрация (тест):', style);
+    // Реальная вибрация только если есть поддержка
+    if (this.webApp && this.webApp.HapticFeedback) {
+        this.webApp.HapticFeedback.impactOccurred(style);
+    }
+  }
+
   showPopup(params) {
     if (this.webApp) {
       this.webApp.showPopup(params);

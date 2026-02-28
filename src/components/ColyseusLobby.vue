@@ -110,12 +110,18 @@ export default {
         };
 
         colyseusMultiplayer.onPlayerJoined = (data) => {
-          if (currentGame.value) {
-            currentGame.value.guest = {
-              name: data.player.name
-            };
-          }
-          telegram.vibrate();
+            console.log('👋 Player joined event:', data);
+            if (currentGame.value) {
+                currentGame.value.guest = {
+                    name: data.player?.name || 'Игрок'
+                };
+            }
+            // Проверяем, есть ли метод vibrate
+            if (telegram && typeof telegram.vibrate === 'function') {
+                telegram.vibrate();
+            } else {
+                console.log('📳 Вибрация не поддерживается');
+            }
         };
 
         colyseusMultiplayer.onGameStart = () => {

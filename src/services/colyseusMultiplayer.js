@@ -97,13 +97,15 @@ class ColyseusMultiplayer {
     setupRoomListeners() {
         // Слушаем изменения состояния
         this.room.onStateChange((state) => {
-            console.log('📊 State updated:', state);
-            
-            // Определяем игроков
-            const players = [];
-            this.playerColor = null;
-            this.opponent = null;
-            
+        console.log('📊 State updated:', state);
+        
+        // Определяем игроков БЕЗОПАСНО
+        const players = [];
+        this.playerColor = null;
+        this.opponent = null;
+        
+        // Проверяем, что state.players существует
+        if (state.players && typeof state.players.forEach === 'function') {
             state.players.forEach((player, id) => {
                 players.push({
                     id: id,
@@ -113,38 +115,47 @@ class ColyseusMultiplayer {
                 
                 if (id === this.playerId) {
                     this.playerColor = player.color;
+                    console.log('🎨 Это я! Цвет:', player.color);
                 } else {
                     this.opponent = {
                         id: id,
                         name: player.name,
                         color: player.color
                     };
+                    console.log('👤 Это противник:', player.name);
                 }
             });
-            
-            console.log('🎨 My color:', this.playerColor);
-            console.log('👤 Opponent:', this.opponent);
-            
-            if (this.onGameUpdate) {
-                // Преобразуем одномерный массив в двумерный для доски
-                const board2D = [];
+        } else {
+            console.log('⚠️ Нет игроков в состоянии');
+        }
+        
+        console.log('🎨 My color:', this.playerColor);
+        console.log('👤 Opponent:', this.opponent);
+        
+        if (this.onGameUpdate) {
+            // Преобразуем одномерный массив в двумерный для доски
+            const board2D = [];
+            if (state.board && state.board.length === 64) {
                 for (let i = 0; i < 8; i++) {
                     board2D.push(state.board.slice(i * 8, (i + 1) * 8));
                 }
-                
-                this.onGameUpdate({
-                    board: board2D,
-                    currentPlayer: state.currentPlayer,
-                    players: players,
-                    lastMove: state.lastMoveRow1 !== 0 ? {
-                        startRow: state.lastMoveRow1,
-                        startCol: state.lastMoveCol1,
-                        endRow: state.lastMoveRow2,
-                        endCol: state.lastMoveCol2
-                    } : null
-                });
+            } else {
+                console.log('⚠️ Некорректная доска:', state.board);
             }
-        });
+            
+            this.onGameUpdate({
+                board: board2D,
+                currentPlayer: state.currentPlayer,
+                players: players,
+                lastMove: state.lastMoveRow1 !== 0 ? {
+                    startRow: state.lastMoveRow1,
+                    startCol: state.lastMoveCol1,
+                    endRow: state.lastMoveRow2,
+                    endCol: state.lastMoveCol2
+                } : null
+            });
+        }
+    });
 
         // Слушаем события
         this.room.onMessage('player_joined', (data) => {
