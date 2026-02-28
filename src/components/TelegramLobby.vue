@@ -175,22 +175,22 @@ export default {
         connected.value = true;
         
         telegramMultiplayer.onGameCreated = (data) => {
+            console.log('Игра создана, роль:', data.role);
             gameId.value = data.gameId;
-            playerRole.value = 'host';
+            playerRole.value = data.role; // 'host'
             hostSide.value = data.hostSide;
             guestSide.value = data.guestSide;
             hostName.value = telegramName.value;
-            emit('game-created', { id: data.gameId });
         };
 
-        telegramMultiplayer.onGameJoined = (data) => {
+            telegramMultiplayer.onGameJoined = (data) => {
+            console.log('Игра присоединена, роль:', data.role);
             gameId.value = data.gameId;
-            playerRole.value = 'guest';
+            playerRole.value = data.role; // 'guest'
             hostSide.value = data.hostSide;
             guestSide.value = data.guestSide;
             hostName.value = data.hostName;
             guestName.value = data.guestName;
-            emit('game-joined', { id: data.gameId });
         };
 
         telegramMultiplayer.onPlayerJoined = (data) => {

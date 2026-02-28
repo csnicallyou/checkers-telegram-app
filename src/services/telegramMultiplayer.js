@@ -67,12 +67,13 @@ class TelegramMultiplayer {
                 
             case 'game_created':
                 this.gameId = data.gameId;
-                this.playerRole = 'host';
+                this.playerRole = data.role; // берем роль из данных
                 this.playerName = data.playerName;
                 this.playerColor = data.hostSide === 'white' ? 1 : 2;
                 if (this.onGameCreated) {
                     this.onGameCreated({
                         gameId: data.gameId,
+                        role: data.role,
                         hostSide: data.hostSide,
                         guestSide: data.guestSide
                     });
@@ -81,7 +82,7 @@ class TelegramMultiplayer {
                 
             case 'game_joined':
                 this.gameId = data.gameId;
-                this.playerRole = 'guest';
+                this.playerRole = data.role; // берем роль из данных
                 this.playerName = data.guestName;
                 this.playerColor = data.guestSide === 'white' ? 1 : 2;
                 this.opponentName = data.hostName;
@@ -89,6 +90,7 @@ class TelegramMultiplayer {
                 if (this.onGameJoined) {
                     this.onGameJoined({
                         gameId: data.gameId,
+                        role: data.role,
                         hostName: data.hostName,
                         hostSide: data.hostSide,
                         guestName: data.guestName,

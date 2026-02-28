@@ -39,7 +39,7 @@ wss.on('connection', (ws) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-      console.log('📩 Received:', data.type);
+      console.log('📩 Received:', data.type, data.gameId);
 
       switch (data.type) {
         case 'create_game':
@@ -99,15 +99,17 @@ function handleCreateGame(clientId, playerName, side) {
   games.set(gameId, game);
   client.gameId = gameId;
   
+  // Отправляем подтверждение с явной ролью
   client.ws.send(JSON.stringify({
     type: 'game_created',
     gameId,
+    role: 'host',  // ЯВНО УКАЗЫВАЕМ РОЛЬ
     hostSide: hostSide,
     guestSide: guestSide,
     playerName: playerName
   }));
   
-  console.log(`✅ Game created: ${gameId} by ${playerName} (${hostSide})`);
+  console.log(`✅ Game created: ${gameId} by ${playerName} (${hostSide}) as HOST`);
 }
 
 function handleJoinGame(clientId, playerName, gameId) {
@@ -147,21 +149,24 @@ function handleJoinGame(clientId, playerName, gameId) {
   if (hostClient) {
     hostClient.ws.send(JSON.stringify({
       type: 'player_joined',
+      role: 'host',  // ЯВНО УКАЗЫВАЕМ РОЛЬ
       guestName: playerName,
       guestSide: guestSide
     }));
     console.log(`📤 Sent player_joined to host: ${game.host.name}`);
   }
   
-  // Уведомляем гостя
+  // Уведомляем гостя с ЯВНЫМ указанием роли
   client.ws.send(JSON.stringify({
     type: 'game_joined',
     gameId,
+    role: 'guest',  // ЯВНО УКАЗЫВАЕМ РОЛЬ
     hostName: game.host.name,
     hostSide: game.host.side,
     guestName: playerName,
     guestSide: guestSide
   }));
+  console.log(`📤 Sent game_joined to guest: ${playerName} as GUEST`);
 }
 
 function handlePlayerReady(clientId, gameId, ready) {
@@ -221,14 +226,14 @@ function handleStartGame(clientId, gameId) {
   const guestClient = clients.get(game.guest.id);
   
   console.log(`🎮 Starting game ${gameId}`);
-  console.log(`   Host: ${game.host.name} (${game.host.side})`);
-  console.log(`   Guest: ${game.guest.name} (${game.guest.side})`);
+  console.log(`   Host: ${game.host.name} (${game.host.side}) as HOST`);
+  console.log(`   Guest: ${game.guest.name} (${game.guest.side}) as GUEST`);
   
   // Отправляем хосту
   if (hostClient) {
     hostClient.ws.send(JSON.stringify({
       type: 'game_started',
-      playerRole: 'host',
+      role: 'host',  // ЯВНО УКАЗЫВАЕМ РОЛЬ
       playerName: game.host.name,
       playerColor: game.host.side === 'white' ? 1 : 2,
       opponentName: game.guest.name,
@@ -241,7 +246,7 @@ function handleStartGame(clientId, gameId) {
   if (guestClient) {
     guestClient.ws.send(JSON.stringify({
       type: 'game_started',
-      playerRole: 'guest',
+      role: 'guest',  // ЯВНО УКАЗЫВАЕМ РОЛЬ
       playerName: game.guest.name,
       playerColor: game.guest.side === 'white' ? 1 : 2,
       opponentName: game.host.name,
@@ -287,20 +292,16 @@ function handleLeaveGame(clientId) {
       type: 'opponent_left',
       message: isHost ? 'Хост покинул игру' : 'Гость покинул игру'
     }));
-    console.log(`📤 Sent opponent_left to ${isHost ? 'guest' : 'host'}`);
   }
   
   // Удаляем игру
   games.delete(client.gameId);
   client.gameId = null;
-  
-  console.log(`👋 ${client.name} left game: ${client.gameId}`);
 }
 
 function handleDisconnect(clientId) {
   const client = clients.get(clientId);
   if (client) {
-    console.log(`🔴 ${client.name || 'Unknown'} disconnected`);
     handleLeaveGame(clientId);
   }
   clients.delete(clientId);
