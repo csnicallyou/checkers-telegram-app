@@ -166,25 +166,33 @@ wss.on('connection', (ws) => {
       }
       
       // ХОД
+      // ХОД
       else if (data.type === 'move') {
         const game = games[data.gameId];
-        if (!game) return;
+        if (!game) {
+          console.log(`❌ Игра ${data.gameId} не найдена`);
+          return;
+        }
+        
+        console.log(`♟️ Ход в игре ${data.gameId}`);
+        console.log(`   От: ${game.host === ws ? game.hostName : game.guestName}`);
         
         const target = game.host === ws ? game.guest : game.host;
         if (target) {
+          const targetName = game.host === ws ? game.guestName : game.hostName;
+          console.log(`   Кому: ${targetName}`);
+          
           target.send(JSON.stringify({
             type: 'opponent_move',
             move: data.move,
             board: data.board,
             currentPlayer: data.currentPlayer
           }));
+          console.log(`✅ Ход отправлен`);
+        } else {
+          console.log(`❌ Целевой игрок не найден`);
         }
       }
-      
-    } catch (error) {
-      console.error('❌ Ошибка:', error);
-    }
-  });
 
   ws.on('close', () => {
     console.log(`🔴 Игрок ${ws.playerName || 'неизвестный'} отключился`);

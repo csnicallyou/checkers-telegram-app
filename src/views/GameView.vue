@@ -109,7 +109,7 @@ export default {
     const opponent = ref(null);
     const opponentDisconnected = ref(false);
     
-    // Данные мультиплеера - ЭТО REF-ПЕРЕМЕННЫЕ!
+    // Данные мультиплеера
     const myColor = ref(1); // 1 - белые, 2 - черные
     const opponentColor = ref(2);
 
@@ -122,6 +122,7 @@ export default {
     // Определяем, нужно ли переворачивать доску
     const isFlipped = computed(() => {
       if (!props.multiplayerMode) return false;
+      console.log('🔄 Проверка переворота: myColor =', myColor.value);
       return myColor.value === 2;
     });
 
@@ -143,7 +144,6 @@ export default {
         return;
       }
       
-      // ПРИСВАИВАЕМ ЗНАЧЕНИЯ REF-ПЕРЕМЕННЫМ
       myColor.value = playerColor;
       opponentColor.value = oppColor;
       opponent.value = { name: opponentName || 'Соперник' };
@@ -161,18 +161,21 @@ export default {
       
       simpleGame.onGameStart = (data) => {
         console.log('🎮 simpleGame.onGameStart получен в GameView:', data);
-        // Здесь не нужно ничего делать, данные уже пришли через props
       };
       
       simpleGame.onOpponentMove = (data) => {
-        console.log('♟️ Ход соперника:', data);
+        console.log('♟️ GameView получил ход соперника:', data);
         
         const { move, board: newBoard, currentPlayer: newPlayer } = data;
         
         if (newBoard) {
+          console.log('📦 Обновление доски');
           board.value = newBoard;
           currentPlayer.value = newPlayer;
           lastMove.value = [[move[0], move[1]], [move[2], move[3]]];
+          console.log('✅ Доска обновлена, текущий игрок:', currentPlayer.value);
+        } else {
+          console.log('❌ Нет данных доски');
         }
         
         telegram.vibrate('light');
@@ -227,6 +230,10 @@ export default {
     };
 
     const executeMove = async (startRow, startCol, endRow, endCol) => {
+      console.log('🎮 Выполнение хода:', { startRow, startCol, endRow, endCol });
+      console.log('📊 Текущий игрок:', currentPlayer.value);
+      console.log('🎨 Мой цвет:', myColor.value);
+      
       const isCapture = Math.abs(endRow - startRow) > 1;
       
       moveHistory.value.push({
@@ -267,6 +274,7 @@ export default {
           currentCaptureChain.value = [endRow, endCol];
           
           if (props.multiplayerMode) {
+            console.log('📤 Отправка хода сопернику (продолжение боя)');
             simpleGame.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
           }
           
@@ -280,6 +288,7 @@ export default {
       currentPlayer.value = currentPlayer.value === PLAYER_WHITE ? PLAYER_BLACK : PLAYER_WHITE;
       
       if (props.multiplayerMode) {
+        console.log('📤 Отправка хода сопернику');
         simpleGame.sendMove([startRow, startCol, endRow, endCol], board.value, currentPlayer.value);
       }
       
@@ -398,6 +407,7 @@ export default {
 </script>
 
 <style scoped>
+/* Стили остаются без изменений */
 .game-view {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);

@@ -90,7 +90,14 @@ class SimpleGame {
                         break;
                         
                     case 'opponent_move':
-                        if (this.onOpponentMove) this.onOpponentMove(data);
+                        console.log('📩 Получен ход соперника:', data);
+                        if (this.onOpponentMove) {
+                            this.onOpponentMove({
+                                move: data.move,
+                                board: data.board,
+                                currentPlayer: data.currentPlayer
+                            });
+                        }
                         break;
                         
                     case 'host_left':
@@ -145,6 +152,7 @@ class SimpleGame {
     }
 
     sendMove(move, board, currentPlayer) {
+        console.log('📤 Отправка хода:', { move, currentPlayer });
         this.ws.send(JSON.stringify({
             type: 'move',
             gameId: this.gameId,
