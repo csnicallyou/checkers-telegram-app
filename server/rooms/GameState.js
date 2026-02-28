@@ -1,13 +1,12 @@
 // server/rooms/GameState.js
 const { Schema, MapSchema, defineTypes } = require('@colyseus/schema');
 
-// Класс для игрока
 class Player extends Schema {
     constructor(id, name) {
         super();
         this.id = id;
         this.name = name;
-        this.color = null;
+        this.color = 0;
         this.connected = true;
     }
 }
@@ -18,39 +17,40 @@ defineTypes(Player, {
     connected: "boolean"
 });
 
-// Класс для состояния игры
 class GameState extends Schema {
     constructor() {
         super();
-        this.board = this.initializeBoard();
-        this.currentPlayer = 1; // 1 - белые, 2 - черные
+        // Используем одномерный массив для доски
+        this.board = new Array(64).fill(0);
+        this.initializeBoard();
+        this.currentPlayer = 1;
         this.players = new MapSchema();
-        this.winner = null;
-        this.lastMove = null;
+        this.winner = 0;
+        this.lastMoveRow1 = 0;
+        this.lastMoveCol1 = 0;
+        this.lastMoveRow2 = 0;
+        this.lastMoveCol2 = 0;
     }
 
     initializeBoard() {
-        const board = Array(8).fill().map(() => Array(8).fill(0));
-        
-        // Черные шашки (сверху)
-        for (let r = 0; r < 3; r++) {
-            for (let c = 0; c < 8; c++) {
-                if ((r + c) % 2 === 1) {
-                    board[r][c] = 2; // BLACK_PAWN
+        // Заполняем доску (индексы 0-63)
+        // Черные шашки (ряды 0-2)
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 8; col++) {
+                if ((row + col) % 2 === 1) {
+                    this.board[row * 8 + col] = 2; // BLACK_PAWN
                 }
             }
         }
         
-        // Белые шашки (снизу)
-        for (let r = 5; r < 8; r++) {
-            for (let c = 0; c < 8; c++) {
-                if ((r + c) % 2 === 1) {
-                    board[r][c] = 1; // WHITE_PAWN
+        // Белые шашки (ряды 5-7)
+        for (let row = 5; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                if ((row + col) % 2 === 1) {
+                    this.board[row * 8 + col] = 1; // WHITE_PAWN
                 }
             }
         }
-        
-        return board;
     }
 
     addPlayer(id, name) {
@@ -69,8 +69,15 @@ class GameState extends Schema {
     }
 
     makeMove(startRow, startCol, endRow, endCol) {
-        this.lastMove = { startRow, startCol, endRow, endCol };
+        // Сохраняем ход
+        this.lastMoveRow1 = startRow;
+        this.lastMoveCol1 = startCol;
+        this.lastMoveRow2 = endRow;
+        this.lastMoveCol2 = endCol;
+        
+        // Временно просто меняем игрока
         this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
+        
         return true;
     }
 }
@@ -79,12 +86,10 @@ defineTypes(GameState, {
     currentPlayer: "number",
     players: { map: Player },
     winner: "number",
-    lastMove: { 
-        startRow: "number", 
-        startCol: "number", 
-        endRow: "number", 
-        endCol: "number" 
-    }
+    lastMoveRow1: "number",
+    lastMoveCol1: "number",
+    lastMoveRow2: "number",
+    lastMoveCol2: "number"
 });
 
 module.exports = { GameState, Player };
