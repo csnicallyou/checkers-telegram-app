@@ -55,7 +55,6 @@ wss.on('connection', (ws) => {
       }
       
       // ГОСТЬ ПРИСОЕДИНЯЕТСЯ
-      // ГОСТЬ ПРИСОЕДИНЯЕТСЯ
       else if (data.type === 'guest_join') {
         const game = games[data.gameId];
         
@@ -117,8 +116,6 @@ wss.on('connection', (ws) => {
       }
       
       // ХОСТ НАЧИНАЕТ ИГРУ
-      // ХОСТ НАЧИНАЕТ ИГРУ
-      // ХОСТ НАЧИНАЕТ ИГРУ
       else if (data.type === 'host_start') {
         const game = games[data.gameId];
         if (!game) {
@@ -166,7 +163,6 @@ wss.on('connection', (ws) => {
       }
       
       // ХОД
-      // ХОД
       else if (data.type === 'move') {
         const game = games[data.gameId];
         if (!game) {
@@ -193,6 +189,10 @@ wss.on('connection', (ws) => {
           console.log(`❌ Целевой игрок не найден`);
         }
       }
+    } catch (error) {
+      console.error('❌ Ошибка обработки сообщения:', error);
+    }
+  });
 
   ws.on('close', () => {
     console.log(`🔴 Игрок ${ws.playerName || 'неизвестный'} отключился`);
